@@ -1,0 +1,30 @@
+[gd_scene format=3 uid="uid://b2arnwiy3srhv"]
+
+[ext_resource type="PackedScene" uid="uid://dr6kk0pu3run3" path="res://scenes/floor.tscn" id="1_yyqkk"]
+[ext_resource type="PackedScene" uid="uid://kopod8vi4sng" path="res://scenes/npc.tscn" id="2_fwfmv"]
+
+[node name="Overworld" type="Node3D" unique_id=646308099]
+
+[node name="floor" parent="." unique_id=1472434602 instance=ExtResource("1_yyqkk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0034023523, 0, -0.012567997)
+
+[node name="NPC" parent="." unique_id=905665313 instance=ExtResource("2_fwfmv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.349845, 0.10000038, 5.8358145)
+faction = 0
+display_name = "Aela"
+
+[node name="NPC" parent="NPC" unique_id=1900716751 instance=ExtResource("2_fwfmv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7534189, 0.10000038, -5.2703304)
+faction = 0
+display_name = "Aela"
+
+[node name="NPC2" parent="." unique_id=1283164643 instance=ExtResource("2_fwfmv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2593198, 0.09999943, 7.078424)
+display_name = "merchant"
+
+[node name="NPC3" parent="." unique_id=677490741 instance=ExtResource("2_fwfmv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.382188, 0.10000038, 4.5300207)
+faction = 1
+display_name = "Bandit"
+
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=383359081]

@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://djntvtq1f6gej"]
+
+[ext_resource type="Script" uid="uid://cj52e1sagdfcy" path="res://Scripts/camera_3d.gd" id="1_tbgi4"]
+[ext_resource type="Script" uid="uid://o3aig3vepexs" path="res://Scripts/main.gd" id="1_tefeu"]
+[ext_resource type="PackedScene" uid="uid://do70xo6gytsji" path="res://scenes/dialogue_ui.tscn" id="5_tefeu"]
+
+[node name="Main" type="Node3D" unique_id=1098384311]
+script = ExtResource("1_tefeu")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=544669195]
+transform = Transform3D(0.70710677, 0.49999997, -0.49999997, 0, 0.70710677, 0.70710677, 0.70710677, -0.49999997, 0.49999997, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1737901441]
+transform = Transform3D(0.70710677, -0.45451945, 0.5416752, 0, 0.76604444, 0.6427876, -0.70710677, -0.45451945, 0.5416752, 10, 12, 10)
+script = ExtResource("1_tbgi4")
+
+[node name="WorldRoot" type="Node3D" parent="." unique_id=1386192796]
+
+[node name="DialogueUI" parent="." unique_id=644473972 instance=ExtResource("5_tefeu")]
+battle_scene_path = "uid://dipo8w4f8velb"

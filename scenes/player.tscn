@@ -1,6 +1,12 @@
 [gd_scene format=3 uid="uid://c5c3ltt1qcxnk"]
 
 [ext_resource type="Script" uid="uid://7udi6pbkq5vk" path="res://Scripts/player.gd" id="1_3vyb7"]
+[ext_resource type="Script" uid="uid://qlg6oc76b8q2" path="res://Scripts/stats.gd" id="2_g2els"]
+
+[sub_resource type="Resource" id="Resource_abqhh"]
+script = ExtResource("2_g2els")
+haste = 9
+metadata/_custom_type_script = "uid://qlg6oc76b8q2"
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_3sak2"]
 
@@ -8,6 +14,7 @@
 
 [node name="Player" type="CharacterBody3D" unique_id=1841863593]
 script = ExtResource("1_3vyb7")
+stats = SubResource("Resource_abqhh")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1154471151]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

@@ -9,7 +9,7 @@ var movement_per_turn: int = 5
 var turn_number: int = 1
 var is_player_turn: bool = true
 var movement_left: int = 5
-
+var enemy_phase: Callable = Callable()
 
 func begin() -> void:
 	turn_number = 1
@@ -36,8 +36,10 @@ func end_player_turn() -> void:
 	is_player_turn = false
 	turn_changed.emit(turn_number, false)
 
-	print("enemy turn")
-	await get_tree().create_timer(0.6).timeout
+	if enemy_phase.is_valid():
+		await enemy_phase.call()
+	else:
+		await get_tree().create_timer(0.6).timeout
 
 	turn_number += 1
 	is_player_turn = true

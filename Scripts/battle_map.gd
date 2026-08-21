@@ -23,6 +23,7 @@ var _ground: StaticBody3D
 var combat: Combat = null
 var _player: Node = null
 var _player_hex: Vector2i
+var _enemy_hex: Vector2i
 var _hud: Control = null
 var _reachable: Dictionary = {}
 var _camera: Camera3D = null
@@ -207,13 +208,15 @@ func setup_battle(player: Node, enemy_data: Dictionary) -> void:
 	_enemy.global_position = get_spawn_position("EnemySpawn")
 	_enemy.display_name = enemy_data.get("display_name", "Enemy")
 	_enemy.faction = enemy_data.get("faction", NPC.Faction.ENEMY)
-
+	_enemy_hex = world_to_hex(_enemy.global_position)
+	
 	combat = Combat.new()
 	combat.name = "Combat"
-	combat.movement_per_turn = movement_per_turn
+	combat.movement_per_turn = _movement_for(player)
 	add_child(combat)
 	combat.begin()
-
+	combat.enemy_phase = _run_enemy_phase
+	
 	var hud_packed: PackedScene = load(HUD_SCENE_PATH)
 	if hud_packed:
 		_hud = hud_packed.instantiate()
@@ -253,6 +256,9 @@ func request_move(_from: Vector3, to: Vector3):
 	var cost: int = hex_distance(_player_hex, to_hex)
 
 	if cost == 0:
+		return null
+	if is_occupied(to_hex):
+		print("That hex is occupied.")
 		return null
 	if not combat.can_afford(cost):
 		print("Too far — %d hexes needed, %d left." % [cost, combat.movement_left])
@@ -301,3 +307,52 @@ func _refresh_reachable() -> void:
 			mm.set_instance_color(h.y * columns + h.x, _tile_color(h.x, h.y) * REACHABLE_TINT)
 
 	_reachable = next
+
+func _movement_for(unit: Node) -> int:
+	if unit != null and "stats" in unit and unit.stats != null:
+		return unit.stats.movement_per_turn()
+	return movement_per_turn
+
+func _axial_to_offset(a: Vector2i) -> Vector2i:
+	if flat_top:
+		return Vector2i(a.x, a.y + int((a.x - (a.x & 1)) / 2.0))
+	return Vector2i(a.x + int((a.y - (a.y & 1)) / 2.0), a.y)
+
+
+## The six adjacent hexes, clipped to the grid.
+func hex_neighbors(h: Vector2i) -> Array:
+	const DIRS := [
+		Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
+		Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1),
+	]
+	var axial: Vector2i = _offset_to_axial(h)
+	var out: Array = []
+	for d in DIRS:
+		var n: Vector2i = _axial_to_offset(axial + d)
+		if n.x >= 0 and n.x < columns and n.y >= 0 and n.y < rows:
+			out.append(n)
+	return out
+
+
+func is_occupied(h: Vector2i) -> bool:
+	return h == _player_hex or h == _enemy_hex
+
+func _run_enemy_phase() -> void:
+	if _enemy == null or not is_instance_valid(_enemy) or not _enemy.is_alive_in_battle():
+		await get_tree().create_timer(0.3).timeout
+		return
+
+	await get_tree().create_timer(0.35).timeout
+
+	var brain: CombatAI = _enemy.ai if _enemy.ai != null else CombatAI.new()
+	var budget: int = _movement_for(_enemy)
+	var destination: Vector2i = brain.plan_move(self, _enemy_hex, _player_hex, budget)
+
+	if destination != _enemy_hex:
+		var cost: int = hex_distance(_enemy_hex, destination)
+		print("%s moves %d hex(es)" % [_enemy.display_name, cost])
+		_enemy_hex = destination
+		_enemy.walk_to(hex_to_world(destination.x, destination.y))
+		await _enemy.walk_finished
+
+	await get_tree().create_timer(0.35).timeout

@@ -23,11 +23,17 @@ const FACTION_COLORS := {
 @export var move_speed: float = 5.5
 @export var follow_distance: float = 3.0
 @export var stop_buffer: float = 0.8
+@export var stats: Stats
+@export var ai: CombatAI
 
 var follow_target: Node3D = null
 var _walking: bool = false
+var _walk_target = null
+signal walk_finished
 
 func _ready() -> void:
+	if not Engine.is_editor_hint():
+		stats = stats.duplicate() if stats != null else Stats.new()
 	_apply_color()
 
 func _apply_color() -> void:
@@ -62,7 +68,20 @@ func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 
-	if not is_following():
+	if _walk_target != null:
+		var to_dest: Vector3 = _walk_target - global_position
+		to_dest.y = 0.0
+		if to_dest.length() < 0.12:
+			_walk_target = null
+			velocity.x = 0.0
+			velocity.z = 0.0
+			walk_finished.emit()
+		else:
+			var d: Vector3 = to_dest.normalized()
+			velocity.x = d.x * move_speed
+			velocity.z = d.z * move_speed
+			look_at(global_position + d, Vector3.UP)
+	elif not is_following():
 		follow_target = null
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -107,3 +126,10 @@ func load_state(data: Dictionary) -> void:
 	rotation.y = data.get("rotation_y", rotation.y)
 	if data.get("following", false) and Game.player != null:
 		start_following(Game.player)
+
+## Walk to a world position, then emit walk_finished.
+func walk_to(where: Vector3) -> void:
+	_walk_target = where
+	
+func is_alive_in_battle() -> bool:
+	return true    # becomes a health check once damage exists

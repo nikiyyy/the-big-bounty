@@ -4,12 +4,14 @@ signal interacted(npc)
 
 @export var speed: float = 5.0
 @export var interaction_range: float = 2.0
+@export var stats: Stats
 
 var target_position: Vector3
 var interaction_target = null
 var dialogue_open: bool = false
 
 func _ready() -> void:
+	stats = stats.duplicate() if stats != null else Stats.new()
 	target_position = global_position
 
 func teleport_to(where: Vector3) -> void:

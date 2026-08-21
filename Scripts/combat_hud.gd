@@ -20,7 +20,7 @@ func bind(new_combat: Combat) -> void:
 	_on_turn_changed(combat.turn_number, combat.is_player_turn)
 	_on_movement_changed(combat.movement_left, combat.movement_per_turn)
 	show()
-#test
+
 
 func _on_turn_changed(turn_number: int, is_player_turn: bool) -> void:
 	turn_label.text = "Turn %d — %s" % [turn_number, "You" if is_player_turn else "Enemy"]

@@ -209,6 +209,8 @@ func setup_battle(player: Node, enemy_data: Dictionary) -> void:
 	_enemy.display_name = enemy_data.get("display_name", "Enemy")
 	_enemy.faction = enemy_data.get("faction", NPC.Faction.ENEMY)
 	_enemy_hex = world_to_hex(_enemy.global_position)
+	HealthTag.attach(player)
+	HealthTag.attach(_enemy)
 	
 	combat = Combat.new()
 	combat.name = "Combat"
@@ -242,31 +244,42 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			Game.end_battle()
-
-## The player asks permission to move. Returns a world position, or null.
+		elif event.keycode == KEY_H and _enemy != null:
+			_enemy.take_damage(3)
+		
+## Returns an Array of world positions to walk through, or null if refused.
 func request_move(_from: Vector3, to: Vector3):
 	if combat == null:
-		return snap_to_hex(to)
+		return [snap_to_hex(to)]
 
 	if not combat.is_player_turn:
 		print("Not your turn.")
 		return null
 
 	var to_hex: Vector2i = world_to_hex(to)
-	var cost: int = hex_distance(_player_hex, to_hex)
-
-	if cost == 0:
+	if to_hex == _player_hex:
 		return null
 	if is_occupied(to_hex):
 		print("That hex is occupied.")
 		return null
+
+	var path: Array = find_path(_player_hex, to_hex)
+	if path.is_empty():
+		print("No path there.")
+		return null
+
+	var cost: int = path.size()
 	if not combat.can_afford(cost):
 		print("Too far — %d hexes needed, %d left." % [cost, combat.movement_left])
 		return null
 
 	_player_hex = to_hex
 	combat.spend(cost)
-	return hex_to_world(to_hex.x, to_hex.y)
+
+	var waypoints: Array = []
+	for h in path:
+		waypoints.append(hex_to_world(h.x, h.y))
+	return waypoints
 
 const REACHABLE_TINT := Color(0.62, 0.72, 0.55)
 
@@ -286,13 +299,7 @@ func _refresh_reachable() -> void:
 
 	var next: Dictionary = {}
 	if combat.is_player_turn and combat.movement_left > 0:
-		var radius: int = combat.movement_left
-		# only scan the bounding box around the player, not all 1200 tiles
-		for row in range(maxi(0, _player_hex.y - radius), mini(rows, _player_hex.y + radius + 1)):
-			for col in range(maxi(0, _player_hex.x - radius - 1), mini(columns, _player_hex.x + radius + 2)):
-				var here := Vector2i(col, row)
-				if hex_distance(_player_hex, here) <= radius:
-					next[here] = true
+		next = reachable_hexes(_player_hex, combat.movement_left)
 
 	var mm: MultiMesh = _grid.multimesh
 
@@ -356,3 +363,67 @@ func _run_enemy_phase() -> void:
 		await _enemy.walk_finished
 
 	await get_tree().create_timer(0.35).timeout
+
+func find_path(from: Vector2i, to: Vector2i) -> Array:
+	if from == to or is_occupied(to):
+		return []
+
+	var frontier: Array = [from]
+	var came_from: Dictionary = {from: from}
+	var cost_so_far: Dictionary = {from: 0}
+
+	while not frontier.is_empty():
+		# cheapest open node by (steps so far + estimate remaining)
+		var best_i: int = 0
+		var best_score: int = cost_so_far[frontier[0]] + hex_distance(frontier[0], to)
+		for i in range(1, frontier.size()):
+			var score: int = cost_so_far[frontier[i]] + hex_distance(frontier[i], to)
+			if score < best_score:
+				best_score = score
+				best_i = i
+
+		var current: Vector2i = frontier[best_i]
+		frontier.remove_at(best_i)
+		if current == to:
+			break
+
+		for n in hex_neighbors(current):
+			if is_occupied(n):
+				continue
+			var next_cost: int = cost_so_far[current] + 1
+			if not cost_so_far.has(n) or next_cost < cost_so_far[n]:
+				cost_so_far[n] = next_cost
+				came_from[n] = current
+				frontier.append(n)
+
+	if not came_from.has(to):
+		return []
+
+	var path: Array = []
+	var node: Vector2i = to
+	while node != from:
+		path.push_front(node)
+		node = came_from[node]
+	return path
+
+
+## Flood fill — every hex actually walkable within budget, obstacles respected.
+func reachable_hexes(from: Vector2i, budget: int) -> Dictionary:
+	var dist: Dictionary = {from: 0}
+	var queue: Array = [from]
+	var head: int = 0
+
+	while head < queue.size():
+		var current: Vector2i = queue[head]
+		head += 1
+		var d: int = dist[current]
+		if d >= budget:
+			continue
+		for n in hex_neighbors(current):
+			if is_occupied(n) or dist.has(n):
+				continue
+			dist[n] = d + 1
+			queue.append(n)
+
+	dist.erase(from)
+	return dist

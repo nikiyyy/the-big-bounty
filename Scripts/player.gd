@@ -9,6 +9,7 @@ signal interacted(npc)
 var target_position: Vector3
 var interaction_target = null
 var dialogue_open: bool = false
+var _waypoints: Array = []
 
 func _ready() -> void:
 	stats = stats.duplicate() if stats != null else Stats.new()
@@ -18,6 +19,7 @@ func teleport_to(where: Vector3) -> void:
 	global_position = where
 	target_position = where
 	interaction_target = null
+	_waypoints.clear()
 	velocity = Vector3.ZERO
 
 func _physics_process(delta: float) -> void:
@@ -29,6 +31,8 @@ func _physics_process(delta: float) -> void:
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
 		look_at(global_position + dir, Vector3.UP)
+	elif not _waypoints.is_empty():
+		target_position = _waypoints.pop_front()
 	else:
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -59,9 +63,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_approach(collider)
 	else:
 		interaction_target = null
-		var dest = _request_destination(hit["position"])
-		if dest != null:
-			target_position = dest
+		_begin_path(_request_destination(hit["position"]))
 
 func _approach(npc) -> void:
 	var away: Vector3 = global_position - npc.global_position
@@ -70,11 +72,8 @@ func _approach(npc) -> void:
 		away = Vector3.FORWARD
 	var stand_at: Vector3 = npc.global_position + away.normalized() * (interaction_range * 0.85)
 
-	var dest = _request_destination(stand_at)
-	if dest == null:
-		return
-	interaction_target = npc
-	target_position = dest
+	if _begin_path(_request_destination(stand_at)):
+		interaction_target = npc
 
 func _check_arrival() -> void:
 	if interaction_target == null:
@@ -102,4 +101,29 @@ func _request_destination(point: Vector3):
 	var world := Game.current_world
 	if world != null and world.has_method("request_move"):
 		return world.request_move(global_position, point)
-	return point
+	return [point]
+
+func _begin_path(path) -> bool:
+	if path == null or path.is_empty():
+		return false
+	_waypoints = path.duplicate()
+	target_position = _waypoints.pop_front()
+	return true
+	
+#health stuff
+signal health_changed(current: int, maximum: int)
+var current_health: int = 0
+
+
+func max_health() -> int:
+	return stats.health if stats != null else 1
+
+
+func take_damage(amount: int) -> void:
+	current_health = maxi(0, current_health - amount)
+	health_changed.emit(current_health, max_health())
+
+
+func heal(amount: int) -> void:
+	current_health = mini(max_health(), current_health + amount)
+	health_changed.emit(current_health, max_health())

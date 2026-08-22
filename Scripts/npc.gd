@@ -34,8 +34,9 @@ signal walk_finished
 func _ready() -> void:
 	if not Engine.is_editor_hint():
 		stats = stats.duplicate() if stats != null else Stats.new()
+		current_health = max_health()
 	_apply_color()
-
+	
 func _apply_color() -> void:
 	if not is_node_ready():
 		return
@@ -133,3 +134,21 @@ func walk_to(where: Vector3) -> void:
 	
 func is_alive_in_battle() -> bool:
 	return true    # becomes a health check once damage exists
+	
+#health stuff
+signal health_changed(current: int, maximum: int)
+var current_health: int = 0
+
+
+func max_health() -> int:
+	return stats.health if stats != null else 1
+
+
+func take_damage(amount: int) -> void:
+	current_health = maxi(0, current_health - amount)
+	health_changed.emit(current_health, max_health())
+
+
+func heal(amount: int) -> void:
+	current_health = mini(max_health(), current_health + amount)
+	health_changed.emit(current_health, max_health())

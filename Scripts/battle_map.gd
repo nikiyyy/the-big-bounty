@@ -1,6 +1,7 @@
 extends Node3D
 const HUD_SCENE_PATH := "res://scenes/combat_hud.tscn"
 const COMBAT_CAMERA_PATH := "res://scenes/combat_camera.tscn"
+const REACHABLE_TINT := Color(0.62, 0.72, 0.55)
 
 @export var columns: int = 30
 @export var rows: int = 40
@@ -17,16 +18,17 @@ const COMBAT_CAMERA_PATH := "res://scenes/combat_camera.tscn"
 		if is_node_ready():
 			_rebuild()
 
-var _enemy: Node = null
 var _grid: MultiMeshInstance3D
 var _ground: StaticBody3D
 var combat: Combat = null
-var _player: Node = null
-var _player_hex: Vector2i
-var _enemy_hex: Vector2i
 var _hud: Control = null
 var _reachable: Dictionary = {}
 var _camera: Camera3D = null
+var _units: Array = []
+var _hexes: Dictionary = {}
+var _enemies: Array = []
+var _allies: Array = []
+var _battle_over: bool = false
 
 func _ready() -> void:
 	_rebuild()
@@ -106,6 +108,12 @@ func _offset_to_axial(h: Vector2i) -> Vector2i:
 	return Vector2i(h.x - int((h.y - (h.y & 1)) / 2.0), h.y)
 
 
+func _axial_to_offset(a: Vector2i) -> Vector2i:
+	if flat_top:
+		return Vector2i(a.x, a.y + int((a.x - (a.x & 1)) / 2.0))
+	return Vector2i(a.x + int((a.y - (a.y & 1)) / 2.0), a.y)
+
+
 func hex_distance(a: Vector2i, b: Vector2i) -> int:
 	var aa: Vector2i = _offset_to_axial(a)
 	var bb: Vector2i = _offset_to_axial(b)
@@ -130,6 +138,32 @@ func _axial_round(a: Vector2) -> Vector2:
 	else:
 		rz = -rx - ry
 	return Vector2(rx, rz)
+
+
+## The six adjacent hexes, clipped to the grid.
+func hex_neighbors(h: Vector2i) -> Array:
+	const DIRS := [
+		Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
+		Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1),
+	]
+	var axial: Vector2i = _offset_to_axial(h)
+	var out: Array = []
+	for d in DIRS:
+		var n: Vector2i = _axial_to_offset(axial + d)
+		if n.x >= 0 and n.x < columns and n.y >= 0 and n.y < rows:
+			out.append(n)
+	return out
+
+
+func is_occupied(h: Vector2i) -> bool:
+	for u in _hexes.keys():
+		if not is_instance_valid(u):
+			continue
+		if u.has_method("is_alive") and not u.is_alive():
+			continue
+		if _hexes[u] == h:
+			return true
+	return false
 
 # ---------------------------------------------------------------- building
 
@@ -195,30 +229,38 @@ func get_spawn_position(spawn_name: String) -> Vector3:
 		return hex_to_world(mid, rows - 2)
 	return hex_to_world(mid, 1)
 
-func setup_battle(player: Node, enemy_data: Dictionary) -> void:
-	_player = player
-	_player_hex = world_to_hex(player.global_position)
+func setup_battle(player: Node, enemy_data: Dictionary, ally_data: Array = []) -> void:
+	var mid: int = int(columns / 2)
 
-	var packed: PackedScene = load("res://scenes/npc.tscn")
-	if packed == null:
-		push_error("BattleMap: no npc.tscn at res://scenes/npc.tscn")
-		return
-	_enemy = packed.instantiate()
-	add_child(_enemy)
-	_enemy.global_position = get_spawn_position("EnemySpawn")
-	_enemy.display_name = enemy_data.get("display_name", "Enemy")
-	_enemy.faction = enemy_data.get("faction", NPC.Faction.ENEMY)
-	_enemy_hex = world_to_hex(_enemy.global_position)
+	_units = [player]
+	_hexes[player] = world_to_hex(player.global_position)
 	HealthTag.attach(player)
-	HealthTag.attach(_enemy)
-	
+	if player.has_signal("died"):
+		player.died.connect(_on_unit_died.bind(player))
+
+	# allies fan out beside the player
+	var side: int = 1
+	for data in ally_data:
+		var offset: int = (side + 1) / 2 * (1 if side % 2 == 1 else -1)
+		var ally = _spawn_unit(data, Vector2i(clampi(mid + offset, 0, columns - 1), 1))
+		if ally:
+			_allies.append(ally)
+			_units.append(ally)
+		side += 1
+
+	var enemy = _spawn_unit(enemy_data, Vector2i(mid, rows - 2))
+	if enemy:
+		_enemies.append(enemy)
+		_units.append(enemy)
+
 	combat = Combat.new()
 	combat.name = "Combat"
-	combat.movement_per_turn = _movement_for(player)
 	add_child(combat)
-	combat.begin()
-	combat.enemy_phase = _run_enemy_phase
-	
+	combat.budget_for = _movement_for
+	combat.is_player_side = _is_player_side
+	combat.ai_phase = _run_ai_turn
+	combat.setup(_units)
+
 	var hud_packed: PackedScene = load(HUD_SCENE_PATH)
 	if hud_packed:
 		_hud = hud_packed.instantiate()
@@ -237,58 +279,168 @@ func setup_battle(player: Node, enemy_data: Dictionary) -> void:
 		_camera.focus_on(player.global_position)
 
 	combat.movement_changed.connect(_on_movement_changed)
-	combat.turn_changed.connect(_on_turn_changed)
-	_refresh_reachable()
+	combat.begin()
+
+
+func _spawn_unit(data: Dictionary, at: Vector2i):
+	var packed: PackedScene = load("res://scenes/npc.tscn")
+	if packed == null:
+		push_error("BattleMap: no npc.tscn at res://scenes/npc.tscn")
+		return null
+	var unit = packed.instantiate()
+	add_child(unit)
+	unit.global_position = hex_to_world(at.x, at.y)
+	unit.display_name = data.get("display_name", "Unit")
+	unit.faction = data.get("faction", NPC.Faction.ENEMY)
+	if data.get("stats") != null:
+		unit.stats = data["stats"].duplicate()
+		unit.current_health = unit.max_health()
+	if data.get("ai") != null:
+		unit.ai = data["ai"]
+	unit.stop_following()
+	_hexes[unit] = at
+	HealthTag.attach(unit)
+	if unit.has_signal("died"):
+		unit.died.connect(_on_unit_died.bind(unit))
+	return unit
+
+
+func _is_player_side(unit) -> bool:
+	return not _enemies.has(unit)
+
+
+## Whoever the player can command right now, or null.
+func get_controlled_unit():
+	if combat == null:
+		return null
+	return combat.active if combat.player_controlled() else null
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			Game.end_battle()
-		elif event.keycode == KEY_H and _enemy != null:
-			_enemy.take_damage(3)
-		
+
 ## Returns an Array of world positions to walk through, or null if refused.
-func request_move(_from: Vector3, to: Vector3):
+func request_move(unit, to: Vector3):
 	if combat == null:
 		return [snap_to_hex(to)]
-
-	if not combat.is_player_turn:
-		print("Not your turn.")
+	if unit != combat.active or not combat.player_controlled():
 		return null
 
+	var from_hex: Vector2i = _hexes.get(unit, world_to_hex(unit.global_position))
 	var to_hex: Vector2i = world_to_hex(to)
-	if to_hex == _player_hex:
-		return null
-	if is_occupied(to_hex):
-		print("That hex is occupied.")
+	if to_hex == from_hex or is_occupied(to_hex):
 		return null
 
-	var path: Array = find_path(_player_hex, to_hex)
+	_hexes.erase(unit)                       # don't path around ourselves
+	var path: Array = find_path(from_hex, to_hex)
+	_hexes[unit] = from_hex
+
 	if path.is_empty():
 		print("No path there.")
 		return null
-
-	var cost: int = path.size()
-	if not combat.can_afford(cost):
-		print("Too far — %d hexes needed, %d left." % [cost, combat.movement_left])
+	if not combat.can_afford(path.size()):
+		print("Too far — %d hexes needed, %d left." % [path.size(), combat.movement_left])
 		return null
 
-	_player_hex = to_hex
-	combat.spend(cost)
+	_hexes[unit] = to_hex
+	combat.spend(path.size())
 
 	var waypoints: Array = []
 	for h in path:
 		waypoints.append(hex_to_world(h.x, h.y))
 	return waypoints
 
-const REACHABLE_TINT := Color(0.62, 0.72, 0.55)
+# ------------------------------------------------------------------ attacking
 
+## Melee attack: must be adjacent, costs the turn's action, damage = strength.
+func request_attack(attacker, target) -> bool:
+	if combat == null or attacker != combat.active or not combat.can_act():
+		return false
+	if target == null or not is_instance_valid(target):
+		return false
+	if target.has_method("is_alive") and not target.is_alive():
+		return false
+	if _is_player_side(attacker) == _is_player_side(target):
+		print("Won't attack an ally.")
+		return false
+
+	var a: Vector2i = _hexes.get(attacker, world_to_hex(attacker.global_position))
+	var b: Vector2i = _hexes.get(target, world_to_hex(target.global_position))
+	if hex_distance(a, b) > 1:
+		print("Too far to attack.")
+		return false
+
+	combat.spend_action()
+	_strike(attacker, target)
+	return true
+
+
+## Same hit, without the player-turn checks — used by the AI.
+func _ai_attack(attacker, target) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	if target.has_method("is_alive") and not target.is_alive():
+		return false
+	var a: Vector2i = _hexes.get(attacker, world_to_hex(attacker.global_position))
+	var b: Vector2i = _hexes.get(target, world_to_hex(target.global_position))
+	if hex_distance(a, b) > 1:
+		return false
+	_strike(attacker, target)
+	return true
+
+
+func _strike(attacker, target) -> void:
+	var power: int = 1
+	if "stats" in attacker and attacker.stats != null:
+		power = attacker.stats.strength
+	_face_unit(attacker, target)
+	print("%s hits %s for %d" % [_name_of(attacker), _name_of(target), power])
+	target.take_damage(power)
+
+
+func _face_unit(unit, target) -> void:
+	var flat := Vector3(target.global_position.x, unit.global_position.y, target.global_position.z)
+	if flat.distance_to(unit.global_position) > 0.01:
+		unit.look_at(flat, Vector3.UP)
+
+
+func _name_of(unit) -> String:
+	return unit.display_name if "display_name" in unit else "Unit"
+
+
+func _on_unit_died(unit) -> void:
+	print("%s is down." % _name_of(unit))
+	_hexes.erase(unit)
+	_refresh_reachable()
+	if combat != null:
+		combat.order_changed.emit(combat.order)
+	_check_battle_over()
+
+
+func _check_battle_over() -> void:
+	if _battle_over:
+		return
+	var enemies_up: bool = false
+	var players_up: bool = false
+	for u in _units:
+		if not is_instance_valid(u):
+			continue
+		if u.has_method("is_alive") and not u.is_alive():
+			continue
+		if _enemies.has(u):
+			enemies_up = true
+		else:
+			players_up = true
+
+	if not enemies_up or not players_up:
+		_battle_over = true
+		print("Victory." if not enemies_up else "Defeat.")
+		Game.end_battle.call_deferred()
+
+# ------------------------------------------------------------ tile highlight
 
 func _on_movement_changed(_remaining: int, _maximum: int) -> void:
-	_refresh_reachable()
-
-
-func _on_turn_changed(_turn_number: int, _is_player_turn: bool) -> void:
 	_refresh_reachable()
 
 
@@ -298,21 +450,20 @@ func _refresh_reachable() -> void:
 		return
 
 	var next: Dictionary = {}
-	if combat.is_player_turn and combat.movement_left > 0:
-		next = reachable_hexes(_player_hex, combat.movement_left)
+	var actor = get_controlled_unit()
+	if actor != null and combat.movement_left > 0 and _hexes.has(actor):
+		var origin: Vector2i = _hexes[actor]
+		_hexes.erase(actor)
+		next = reachable_hexes(origin, combat.movement_left)
+		_hexes[actor] = origin
 
 	var mm: MultiMesh = _grid.multimesh
-
-	# clear tiles that are no longer reachable
 	for h in _reachable.keys():
 		if not next.has(h):
 			mm.set_instance_color(h.y * columns + h.x, _tile_color(h.x, h.y))
-
-	# tint the new ones
 	for h in next.keys():
 		if not _reachable.has(h):
 			mm.set_instance_color(h.y * columns + h.x, _tile_color(h.x, h.y) * REACHABLE_TINT)
-
 	_reachable = next
 
 func _movement_for(unit: Node) -> int:
@@ -320,49 +471,63 @@ func _movement_for(unit: Node) -> int:
 		return unit.stats.movement_per_turn()
 	return movement_per_turn
 
-func _axial_to_offset(a: Vector2i) -> Vector2i:
-	if flat_top:
-		return Vector2i(a.x, a.y + int((a.x - (a.x & 1)) / 2.0))
-	return Vector2i(a.x + int((a.y - (a.y & 1)) / 2.0), a.y)
+# ------------------------------------------------------------------- enemy AI
 
-
-## The six adjacent hexes, clipped to the grid.
-func hex_neighbors(h: Vector2i) -> Array:
-	const DIRS := [
-		Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
-		Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1),
-	]
-	var axial: Vector2i = _offset_to_axial(h)
-	var out: Array = []
-	for d in DIRS:
-		var n: Vector2i = _axial_to_offset(axial + d)
-		if n.x >= 0 and n.x < columns and n.y >= 0 and n.y < rows:
-			out.append(n)
-	return out
-
-
-func is_occupied(h: Vector2i) -> bool:
-	return h == _player_hex or h == _enemy_hex
-
-func _run_enemy_phase() -> void:
-	if _enemy == null or not is_instance_valid(_enemy) or not _enemy.is_alive_in_battle():
-		await get_tree().create_timer(0.3).timeout
+func _run_ai_turn(unit) -> void:
+	if unit == null or not is_instance_valid(unit):
+		return
+	if unit.has_method("is_alive") and not unit.is_alive():
+		return
+	await get_tree().create_timer(0.35).timeout
+	if _battle_over:
 		return
 
-	await get_tree().create_timer(0.35).timeout
+	var target = _nearest_player_unit(unit)
+	if target == null:
+		return
 
-	var brain: CombatAI = _enemy.ai if _enemy.ai != null else CombatAI.new()
-	var budget: int = _movement_for(_enemy)
-	var destination: Vector2i = brain.plan_move(self, _enemy_hex, _player_hex, budget)
+	var from_hex: Vector2i = _hexes[unit]
+	var brain: CombatAI = unit.ai if unit.ai != null else CombatAI.new()
 
-	if destination != _enemy_hex:
-		var cost: int = hex_distance(_enemy_hex, destination)
-		print("%s moves %d hex(es)" % [_enemy.display_name, cost])
-		_enemy_hex = destination
-		_enemy.walk_to(hex_to_world(destination.x, destination.y))
-		await _enemy.walk_finished
+	_hexes.erase(unit)
+	var destination: Vector2i = brain.plan_move(self, from_hex, _hexes[target], _movement_for(unit))
+	_hexes[unit] = from_hex
 
-	await get_tree().create_timer(0.35).timeout
+	if destination != from_hex:
+		var path: Array = find_path(from_hex, destination)
+		if not path.is_empty():
+			_hexes[unit] = destination
+			var points: Array = []
+			for h in path:
+				points.append(hex_to_world(h.x, h.y))
+			unit.walk_path(points)
+			await unit.walk_finished
+
+	if _battle_over:
+		return
+	if _ai_attack(unit, target):
+		await get_tree().create_timer(0.4).timeout
+
+	await get_tree().create_timer(0.3).timeout
+
+
+func _nearest_player_unit(from_unit):
+	var best = null
+	var best_d: int = 1 << 30
+	for u in _units:
+		if not is_instance_valid(u) or _enemies.has(u):
+			continue
+		if u.has_method("is_alive") and not u.is_alive():
+			continue
+		if not _hexes.has(u):
+			continue
+		var d: int = hex_distance(_hexes[from_unit], _hexes[u])
+		if d < best_d:
+			best_d = d
+			best = u
+	return best
+
+# ---------------------------------------------------------------- pathfinding
 
 func find_path(from: Vector2i, to: Vector2i) -> Array:
 	if from == to or is_occupied(to):

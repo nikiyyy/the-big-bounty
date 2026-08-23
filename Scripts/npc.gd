@@ -29,7 +29,9 @@ const FACTION_COLORS := {
 var follow_target: Node3D = null
 var _walking: bool = false
 var _walk_target = null
+var _walk_queue: Array = []
 signal walk_finished
+signal died
 
 func _ready() -> void:
 	if not Engine.is_editor_hint():
@@ -68,15 +70,16 @@ func is_following() -> bool:
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
+	if not is_alive():
+		return
 
 	if _walk_target != null:
 		var to_dest: Vector3 = _walk_target - global_position
 		to_dest.y = 0.0
 		if to_dest.length() < 0.12:
-			_walk_target = null
 			velocity.x = 0.0
 			velocity.z = 0.0
-			walk_finished.emit()
+			_next_waypoint()
 		else:
 			var d: Vector3 = to_dest.normalized()
 			velocity.x = d.x * move_speed
@@ -108,11 +111,13 @@ func _physics_process(delta: float) -> void:
 
 	velocity.y = 0.0 if is_on_floor() else velocity.y - 20.0 * delta
 	move_and_slide()
-	
+
 func to_battle_data() -> Dictionary:
 	return {
 		"display_name": display_name,
 		"faction": faction,
+		"stats": stats,
+		"ai": ai,
 	}
 
 func save_state() -> Dictionary:
@@ -130,11 +135,22 @@ func load_state(data: Dictionary) -> void:
 
 ## Walk to a world position, then emit walk_finished.
 func walk_to(where: Vector3) -> void:
-	_walk_target = where
+	walk_path([where])
 	
 func is_alive_in_battle() -> bool:
-	return true    # becomes a health check once damage exists
-	
+	return is_alive()    # becomes a health check once damage exists
+
+func walk_path(points: Array) -> void:
+	_walk_queue = points.duplicate()
+	_next_waypoint()
+
+func _next_waypoint() -> void:
+	if _walk_queue.is_empty():
+		_walk_target = null
+		walk_finished.emit()
+	else:
+		_walk_target = _walk_queue.pop_front()
+
 #health stuff
 signal health_changed(current: int, maximum: int)
 var current_health: int = 0
@@ -145,10 +161,26 @@ func max_health() -> int:
 
 
 func take_damage(amount: int) -> void:
+	if current_health <= 0:
+		return
 	current_health = maxi(0, current_health - amount)
 	health_changed.emit(current_health, max_health())
+	if current_health == 0:
+		_die()
+
+
+func _die() -> void:
+	velocity = Vector3.ZERO
+	rotation.x = deg_to_rad(-90.0)
+	set_collision_layer_value(2, false)
+	set_collision_mask_value(2, false)
+	$CollisionShape3D.set_deferred("disabled", true)
+	died.emit()
 
 
 func heal(amount: int) -> void:
 	current_health = mini(max_health(), current_health + amount)
 	health_changed.emit(current_health, max_health())
+	
+func is_alive() -> bool:
+	return current_health > 0

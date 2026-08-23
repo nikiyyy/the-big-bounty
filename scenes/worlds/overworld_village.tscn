@@ -2,6 +2,13 @@
 
 [ext_resource type="PackedScene" uid="uid://dr6kk0pu3run3" path="res://scenes/floor.tscn" id="1_yyqkk"]
 [ext_resource type="PackedScene" uid="uid://kopod8vi4sng" path="res://scenes/npc.tscn" id="2_fwfmv"]
+[ext_resource type="Script" uid="uid://qlg6oc76b8q2" path="res://Scripts/stats.gd" id="3_fwfmv"]
+
+[sub_resource type="Resource" id="Resource_m22rl"]
+script = ExtResource("3_fwfmv")
+health = 5
+haste = 3
+metadata/_custom_type_script = "uid://qlg6oc76b8q2"
 
 [node name="Overworld" type="Node3D" unique_id=646308099]
 
@@ -26,5 +33,6 @@ display_name = "merchant"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.382188, 0.10000038, 4.5300207)
 faction = 1
 display_name = "Bandit"
+stats = SubResource("Resource_m22rl")
 
 [node name="PlayerSpawn" type="Marker3D" parent="." unique_id=383359081]

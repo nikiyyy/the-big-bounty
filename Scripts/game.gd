@@ -93,11 +93,14 @@ func start_battle(battle_scene_path: String, enemy_source: Node) -> void:
 	if enemy_source and enemy_source.has_method("to_battle_data"):
 		enemy_data = enemy_source.to_battle_data()
 
+	var ally_data: Array = []
+	_collect_followers(current_world, ally_data)
+
 	_in_battle = true
 	await load_world(battle_scene_path)
 
 	if current_world.has_method("setup_battle"):
-		current_world.setup_battle(player, enemy_data)
+		current_world.setup_battle(player, enemy_data, ally_data)
 	battle_started.emit(current_world)
 
 
@@ -132,3 +135,10 @@ func _restore_state(world: Node) -> void:
 		var node := world.get_node_or_null(NodePath(path))
 		if node and node.has_method("load_state"):
 			node.load_state(data[path])
+
+func _collect_followers(node: Node, out: Array) -> void:
+	for child in node.get_children():
+		if child.has_method("is_following") and child.is_following():
+			if child.has_method("to_battle_data"):
+				out.append(child.to_battle_data())
+		_collect_followers(child, out)

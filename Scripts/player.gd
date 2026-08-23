@@ -1,19 +1,26 @@
 extends CharacterBody3D
 
 signal interacted(npc)
+signal health_changed(current: int, maximum: int)
+signal died
 
 @export var speed: float = 5.0
 @export var interaction_range: float = 2.0
 @export var stats: Stats
+@export var display_name: String = "Hero"
 
 var target_position: Vector3
 var interaction_target = null
 var dialogue_open: bool = false
+var current_health: int = 0
 var _waypoints: Array = []
+
 
 func _ready() -> void:
 	stats = stats.duplicate() if stats != null else Stats.new()
+	current_health = max_health()
 	target_position = global_position
+
 
 func teleport_to(where: Vector3) -> void:
 	global_position = where
@@ -22,7 +29,10 @@ func teleport_to(where: Vector3) -> void:
 	_waypoints.clear()
 	velocity = Vector3.ZERO
 
+
 func _physics_process(delta: float) -> void:
+	if not is_alive():
+		return
 	var to_target: Vector3 = target_position - global_position
 	to_target.y = 0.0
 
@@ -41,6 +51,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_check_arrival()
 
+
 func _unhandled_input(event: InputEvent) -> void:
 	if dialogue_open:
 		return
@@ -50,6 +61,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
 	var from: Vector3 = cam.project_ray_origin(event.position)
 	var to: Vector3 = from + cam.project_ray_normal(event.position) * 1000.0
 	var query := PhysicsRayQueryParameters3D.create(from, to)
@@ -58,12 +71,50 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not hit.has("position"):
 		return
 
+	var actor = _active_actor()
+	if actor == null:
+		return
+
 	var collider = hit.get("collider")
 	if collider != null and collider.has_method("get_faction"):
-		_approach(collider)
-	else:
-		interaction_target = null
-		_begin_path(_request_destination(hit["position"]))
+		var world := Game.current_world
+		if world != null and world.has_method("request_attack"):
+			world.request_attack(actor, collider)
+		elif actor == self:
+			_approach(collider)
+		return
+
+	var path = _request_path(actor, hit["position"])
+	if path != null and not path.is_empty():
+		actor.walk_path(path)
+
+
+## In battle, clicks command whoever's turn it is. Outside battle, us.
+func _active_actor():
+	var world := Game.current_world
+	if world != null and world.has_method("get_controlled_unit"):
+		return world.get_controlled_unit()
+	return self
+
+
+func _request_path(actor, point: Vector3):
+	var world := Game.current_world
+	if world != null and world.has_method("request_move"):
+		return world.request_move(actor, point)
+	return [point]
+
+
+func walk_path(points: Array) -> void:
+	_begin_path(points)
+
+
+func _begin_path(path) -> bool:
+	if path == null or path.is_empty():
+		return false
+	_waypoints = path.duplicate()
+	target_position = _waypoints.pop_front()
+	return true
+
 
 func _approach(npc) -> void:
 	var away: Vector3 = global_position - npc.global_position
@@ -72,12 +123,17 @@ func _approach(npc) -> void:
 		away = Vector3.FORWARD
 	var stand_at: Vector3 = npc.global_position + away.normalized() * (interaction_range * 0.85)
 
-	if _begin_path(_request_destination(stand_at)):
+	if _begin_path(_request_path(self, stand_at)):
 		interaction_target = npc
+
 
 func _check_arrival() -> void:
 	if interaction_target == null:
 		return
+	if not is_instance_valid(interaction_target):
+		interaction_target = null
+		return
+
 	var a: Vector3 = global_position
 	var b: Vector3 = interaction_target.global_position
 	var flat_distance: float = Vector2(a.x - b.x, a.z - b.z).length()
@@ -92,38 +148,40 @@ func _check_arrival() -> void:
 	dialogue_open = true
 	interacted.emit(npc)
 
+
 func _face(point: Vector3) -> void:
 	var flat := Vector3(point.x, global_position.y, point.z)
 	if flat.distance_to(global_position) > 0.01:
 		look_at(flat, Vector3.UP)
-		
-func _request_destination(point: Vector3):
-	var world := Game.current_world
-	if world != null and world.has_method("request_move"):
-		return world.request_move(global_position, point)
-	return [point]
 
-func _begin_path(path) -> bool:
-	if path == null or path.is_empty():
-		return false
-	_waypoints = path.duplicate()
-	target_position = _waypoints.pop_front()
-	return true
-	
-#health stuff
-signal health_changed(current: int, maximum: int)
-var current_health: int = 0
 
+# ---------------------------------------------------------------- health
 
 func max_health() -> int:
 	return stats.health if stats != null else 1
 
 
 func take_damage(amount: int) -> void:
+	if current_health <= 0:
+		return
 	current_health = maxi(0, current_health - amount)
 	health_changed.emit(current_health, max_health())
+	if current_health == 0:
+		_die()
+
+
+func _die() -> void:
+	velocity = Vector3.ZERO
+	rotation.x = deg_to_rad(-90.0)
+	set_collision_layer_value(2, false)
+	set_collision_mask_value(2, false)
+	$CollisionShape3D.set_deferred("disabled", true)
+	died.emit()
 
 
 func heal(amount: int) -> void:
 	current_health = mini(max_health(), current_health + amount)
 	health_changed.emit(current_health, max_health())
+	
+func is_alive() -> bool:
+	return current_health > 0

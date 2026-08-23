@@ -19,9 +19,9 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -380.0
-offset_top = -90.0
-offset_right = -24.0
+offset_left = -172.0
+offset_top = -132.0
+offset_right = -32.0
 offset_bottom = -24.0
 grow_horizontal = 0
 grow_vertical = 0
@@ -33,15 +33,9 @@ theme_override_constants/margin_top = 14
 theme_override_constants/margin_right = 14
 theme_override_constants/margin_bottom = 14
 
-[node name="HBox" type="HBoxContainer" parent="Panel/Margin" unique_id=222966119]
+[node name="HBox" type="VBoxContainer" parent="Panel/Margin" unique_id=2009737809]
 layout_mode = 2
 theme_override_constants/separation = 18
-
-[node name="TurnLabel" type="Label" parent="Panel/Margin/HBox" unique_id=2024415423]
-layout_mode = 2
-
-[node name="MoveLabel" type="Label" parent="Panel/Margin/HBox" unique_id=1109493545]
-layout_mode = 2
 
 [node name="EndTurnButton" type="Button" parent="Panel/Margin/HBox" unique_id=411929307]
 layout_mode = 2

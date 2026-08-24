@@ -3,11 +3,15 @@ extends CharacterBody3D
 signal interacted(npc)
 signal health_changed(current: int, maximum: int)
 signal died
+signal gold_changed(amount: int)
+signal xp_changed(amount: int)
 
 @export var speed: float = 5.0
 @export var interaction_range: float = 2.0
 @export var stats: Stats
 @export var display_name: String = "Hero"
+@export var gold: int = 0
+@export var xp: int = 0
 
 var target_position: Vector3
 var interaction_target = null
@@ -18,6 +22,7 @@ var _waypoints: Array = []
 
 func _ready() -> void:
 	stats = stats.duplicate() if stats != null else Stats.new()
+	stats.changed_stat.connect(_on_stat_raised)
 	current_health = max_health()
 	target_position = global_position
 
@@ -154,12 +159,45 @@ func _face(point: Vector3) -> void:
 	if flat.distance_to(global_position) > 0.01:
 		look_at(flat, Vector3.UP)
 
+func add_gold(amount: int) -> void:
+	gold = maxi(0, gold + amount)
+	gold_changed.emit(gold)
+
+
+func add_xp(amount: int) -> void:
+	xp = maxi(0, xp + amount)
+	xp_changed.emit(xp)
+
+func _on_stat_raised(stat_name: String) -> void:
+	print("stat raised: ", stat_name, " health now ", current_health, "/", max_health())
+	if stat_name == "health":
+		current_health += 1
+		health_changed.emit(current_health, max_health())
+
+func save_state() -> Dictionary:
+	return {
+		"stats": stats,
+		"health": current_health,
+		"gold": gold,
+		"xp": xp,
+	}
+
+func load_state(data: Dictionary) -> void:
+	if data.get("stats") != null:
+		stats = data["stats"]
+		if not stats.changed_stat.is_connected(_on_stat_raised):
+			stats.changed_stat.connect(_on_stat_raised)
+	current_health = data.get("health", max_health())
+	gold = data.get("gold", 0)
+	xp = data.get("xp", 0)
+	health_changed.emit(current_health, max_health())
+	gold_changed.emit(gold)
+	xp_changed.emit(xp)
 
 # ---------------------------------------------------------------- health
 
 func max_health() -> int:
 	return stats.health if stats != null else 1
-
 
 func take_damage(amount: int) -> void:
 	if current_health <= 0:
@@ -169,7 +207,6 @@ func take_damage(amount: int) -> void:
 	if current_health == 0:
 		_die()
 
-
 func _die() -> void:
 	velocity = Vector3.ZERO
 	rotation.x = deg_to_rad(-90.0)
@@ -178,10 +215,10 @@ func _die() -> void:
 	$CollisionShape3D.set_deferred("disabled", true)
 	died.emit()
 
-
 func heal(amount: int) -> void:
 	current_health = mini(max_health(), current_health + amount)
 	health_changed.emit(current_health, max_health())
 	
 func is_alive() -> bool:
 	return current_health > 0
+	

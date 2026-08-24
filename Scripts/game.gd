@@ -14,6 +14,7 @@ var _in_battle: bool = false
 var _return_world_path: String = ""
 var _return_position: Vector3 = Vector3.ZERO
 var _world_states: Dictionary = {}
+var _player_state: Dictionary = {}
 
 func register_world_root(node: Node) -> void:
 	world_root = node
@@ -43,17 +44,22 @@ func load_world(scene_path: String) -> void:
 
 
 func _free_current_world() -> void:
+	# the player is rebuilt from scratch each load, so carry its state across
+	if player != null and is_instance_valid(player) and player.has_method("save_state"):
+		_player_state = player.save_state()
 	player = null
+
 	if current_world == null:
 		return
 
-	# snapshot before it disappears
+	# snapshot the world before it disappears
 	_world_states[current_world.scene_file_path] = _capture_state(current_world)
 
 	world_root.remove_child(current_world)
 	current_world.queue_free()
 	current_world = null
-	
+
+
 func _spawn_player(world: Node) -> void:
 	var packed: PackedScene = load(PLAYER_SCENE_PATH)
 	if packed == null:
@@ -63,9 +69,12 @@ func _spawn_player(world: Node) -> void:
 	player = packed.instantiate()
 	world.add_child(player)
 	player.global_position = _find_spawn(world)
+	if not _player_state.is_empty() and player.has_method("load_state"):
+		player.load_state(_player_state)
 	if player.has_method("teleport_to"):
 		player.teleport_to(player.global_position)
 	player_spawned.emit(player)
+
 
 func _find_spawn(world: Node) -> Vector3:
 	# worlds that generate themselves compute spawns in code
@@ -115,7 +124,7 @@ func end_battle() -> void:
 		player.teleport_to(_return_position)
 
 	battle_ended.emit()
-	
+
 func _capture_state(world: Node) -> Dictionary:
 	var data: Dictionary = {}
 	_walk_save(world, world, data)
@@ -124,6 +133,8 @@ func _capture_state(world: Node) -> Dictionary:
 
 func _walk_save(world: Node, node: Node, data: Dictionary) -> void:
 	for child in node.get_children():
+		if child == player:
+			continue          # the player has its own dedicated snapshot
 		if child.has_method("save_state"):
 			data[String(world.get_path_to(child))] = child.save_state()
 		_walk_save(world, child, data)

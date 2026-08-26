@@ -30,5 +30,13 @@ func plan_move(field, from_hex: Vector2i, target_hex: Vector2i, movement: int) -
 	if path.is_empty():
 		return from_hex
 
-	var steps: int = mini(movement, path.size())
-	return path[steps - 1] if steps > 0 else from_hex
+	# walk the path only as far as the movement budget actually stretches
+	var spent: int = 0
+	var reached: Vector2i = from_hex
+	for h in path:
+		var step_cost: int = field.move_cost(h)
+		if spent + step_cost > movement:
+			break
+		spent += step_cost
+		reached = h
+	return reached

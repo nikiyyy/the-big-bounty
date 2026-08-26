@@ -2,14 +2,24 @@ extends Node3D
 const HUD_SCENE_PATH := "res://scenes/combat_hud.tscn"
 const COMBAT_CAMERA_PATH := "res://scenes/combat_camera.tscn"
 const REACHABLE_TINT := Color(0.62, 0.72, 0.55)
+const COLOR_OBSTACLE := Color(0.04, 0.04, 0.05)
+const COLOR_ROUGH := Color(0.18, 0.32, 0.58)
 
 @export var columns: int = 30
 @export var rows: int = 40
 @export var hex_size: float = 1.0
 @export var hex_gap: float = 0.06
 @export var tile_height: float = 0.15
-@export var deploy_rows: int = 3
+@export var deploy_rows: int = 2
 @export var movement_per_turn: int = 5
+
+@export_range(0.0, 0.3) var obstacle_density: float = 0.05
+@export_range(0.0, 1.0) var obstacle_spread: float = 0.2
+@export var max_cluster_size: int = 8
+
+@export_range(0.0, 0.3) var rough_density: float = 0.08
+@export_range(0.0, 1.0) var rough_spread: float = 0.3
+@export var max_rough_cluster: int = 12
 
 ## Toggle this if tiles don't interlock. One of the two will be correct.
 @export var flat_top: bool = false:
@@ -26,6 +36,8 @@ var _reachable: Dictionary = {}
 var _camera: Camera3D = null
 var _units: Array = []
 var _hexes: Dictionary = {}
+var _obstacles: Dictionary = {}
+var _rough: Dictionary = {}
 var _enemies: Array = []
 var _allies: Array = []
 var _battle_over: bool = false
@@ -40,6 +52,7 @@ func _rebuild() -> void:
 	if _ground:
 		_ground.queue_free()
 		_ground = null
+	_generate_terrain()
 	_build_ground()
 	_build_grid()
 
@@ -156,6 +169,8 @@ func hex_neighbors(h: Vector2i) -> Array:
 
 
 func is_occupied(h: Vector2i) -> bool:
+	if _obstacles.has(h):
+		return true
 	for u in _hexes.keys():
 		if not is_instance_valid(u):
 			continue
@@ -215,6 +230,11 @@ func _build_grid() -> void:
 	add_child(_grid)
 
 func _tile_color(col: int, row: int) -> Color:
+	var h := Vector2i(col, row)
+	if _obstacles.has(h):
+		return COLOR_OBSTACLE
+	if _rough.has(h):
+		return COLOR_ROUGH
 	if row < deploy_rows:
 		return Color(0.24, 0.42, 0.30)
 	if row >= rows - deploy_rows:
@@ -339,12 +359,14 @@ func request_move(unit, to: Vector3):
 	if path.is_empty():
 		print("No path there.")
 		return null
-	if not combat.can_afford(path.size()):
-		print("Too far — %d hexes needed, %d left." % [path.size(), combat.movement_left])
+
+	var cost: int = path_cost(path)
+	if not combat.can_afford(cost):
+		print("Too far — %d points needed, %d left." % [cost, combat.movement_left])
 		return null
 
 	_hexes[unit] = to_hex
-	combat.spend(path.size())
+	combat.spend(cost)
 
 	var waypoints: Array = []
 	for h in path:
@@ -538,7 +560,7 @@ func find_path(from: Vector2i, to: Vector2i) -> Array:
 	var cost_so_far: Dictionary = {from: 0}
 
 	while not frontier.is_empty():
-		# cheapest open node by (steps so far + estimate remaining)
+		# cheapest open node by (cost so far + estimate remaining)
 		var best_i: int = 0
 		var best_score: int = cost_so_far[frontier[0]] + hex_distance(frontier[0], to)
 		for i in range(1, frontier.size()):
@@ -555,7 +577,7 @@ func find_path(from: Vector2i, to: Vector2i) -> Array:
 		for n in hex_neighbors(current):
 			if is_occupied(n):
 				continue
-			var next_cost: int = cost_so_far[current] + 1
+			var next_cost: int = cost_so_far[current] + move_cost(n)
 			if not cost_so_far.has(n) or next_cost < cost_so_far[n]:
 				cost_so_far[n] = next_cost
 				came_from[n] = current
@@ -572,23 +594,100 @@ func find_path(from: Vector2i, to: Vector2i) -> Array:
 	return path
 
 
-## Flood fill — every hex actually walkable within budget, obstacles respected.
+## Dijkstra rather than BFS, because hexes no longer all cost the same.
 func reachable_hexes(from: Vector2i, budget: int) -> Dictionary:
 	var dist: Dictionary = {from: 0}
-	var queue: Array = [from]
-	var head: int = 0
+	var open: Array = [from]
 
-	while head < queue.size():
-		var current: Vector2i = queue[head]
-		head += 1
+	while not open.is_empty():
+		var best_i: int = 0
+		for i in range(1, open.size()):
+			if dist[open[i]] < dist[open[best_i]]:
+				best_i = i
+		var current: Vector2i = open[best_i]
+		open.remove_at(best_i)
+
 		var d: int = dist[current]
-		if d >= budget:
-			continue
 		for n in hex_neighbors(current):
-			if is_occupied(n) or dist.has(n):
+			if is_occupied(n):
 				continue
-			dist[n] = d + 1
-			queue.append(n)
+			var next_cost: int = d + move_cost(n)
+			if next_cost > budget:
+				continue
+			if not dist.has(n) or next_cost < dist[n]:
+				dist[n] = next_cost
+				open.append(n)
 
 	dist.erase(from)
 	return dist
+
+# -------------------------------------------------------------------- terrain
+
+func _generate_terrain() -> void:
+	_obstacles.clear()
+	_rough.clear()
+	_scatter(_obstacles, obstacle_density, obstacle_spread, max_cluster_size)
+	_scatter(_rough, rough_density, rough_spread, max_rough_cluster)
+
+
+## Scatter seeds, then grow each into its neighbours. Growing rather than
+## placing individually is what produces clumps instead of confetti.
+func _scatter(into: Dictionary, density: float, spread: float, max_cluster: int) -> void:
+	var target: int = int(columns * rows * density)
+	if target <= 0:
+		return
+
+	var guard: int = 0
+	while into.size() < target and guard < target * 40:
+		guard += 1
+		var seed_hex := Vector2i(randi() % columns, randi() % rows)
+		if not _is_free_ground(seed_hex, into):
+			continue
+		_grow_cluster(into, seed_hex, target, spread, max_cluster)
+
+
+func _grow_cluster(into: Dictionary, start: Vector2i, target: int, spread: float, max_cluster: int) -> void:
+	var queue: Array = [start]
+	into[start] = true
+	var placed: int = 1
+
+	while not queue.is_empty() and placed < max_cluster and into.size() < target:
+		var current: Vector2i = queue.pop_front()
+		for n in hex_neighbors(current):
+			if not _is_free_ground(n, into):
+				continue
+			if randf() > spread:
+				continue
+			into[n] = true
+			queue.append(n)
+			placed += 1
+			if placed >= max_cluster or into.size() >= target:
+				break
+
+
+## Nothing generates into a deploy zone or on top of existing terrain.
+func _is_free_ground(h: Vector2i, into: Dictionary) -> bool:
+	if into.has(h) or _obstacles.has(h) or _rough.has(h):
+		return false
+	return not _in_deploy_zone(h)
+
+
+func _in_deploy_zone(h: Vector2i) -> bool:
+	return h.y < deploy_rows or h.y >= rows - deploy_rows
+
+
+func is_obstacle(h: Vector2i) -> bool:
+	return _obstacles.has(h)
+
+
+## Movement points to enter this hex.
+func move_cost(h: Vector2i) -> int:
+	return 2 if _rough.has(h) else 1
+
+
+## Total cost of a path (which excludes the starting hex).
+func path_cost(path: Array) -> int:
+	var total: int = 0
+	for h in path:
+		total += move_cost(h)
+	return total

@@ -127,8 +127,10 @@ func _refresh() -> void:
 	var who: String = player.display_name if "display_name" in player else "Hero"
 	var gold: int = player.gold if "gold" in player else 0
 	var xp: int = player.xp if "xp" in player else 0
+	var level: int = player.level if "level" in player else 1
+	var armor: int = player.armor() if player.has_method("armor") else 0
 
-	_header.text = "%s     %d gold     %d xp" % [who, gold, xp]
+	_header.text = "%s   lvl %d   armor %d   %d gold   %d xp" % [who, level, armor, gold, xp]
 	_points_label.text = "Points to spend: %d" % stats.available_points
 
 	for stat_name in Stats.NAMES:

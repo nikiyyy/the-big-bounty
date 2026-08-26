@@ -25,6 +25,8 @@ const FACTION_COLORS := {
 @export var stop_buffer: float = 0.8
 @export var stats: Stats
 @export var ai: CombatAI
+@export var level: int = 1
+@export var base_armor: int = 0
 
 var follow_target: Node3D = null
 var _walking: bool = false
@@ -118,6 +120,8 @@ func to_battle_data() -> Dictionary:
 		"faction": faction,
 		"stats": stats,
 		"ai": ai,
+		"level": level,
+		"base_armor": base_armor,
 	}
 
 func save_state() -> Dictionary:
@@ -150,6 +154,9 @@ func _next_waypoint() -> void:
 		walk_finished.emit()
 	else:
 		_walk_target = _walk_queue.pop_front()
+
+func armor() -> int:
+	return base_armor
 
 #health stuff
 signal health_changed(current: int, maximum: int)

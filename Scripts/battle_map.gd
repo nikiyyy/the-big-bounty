@@ -312,6 +312,8 @@ func _spawn_unit(data: Dictionary, at: Vector2i):
 	unit.global_position = hex_to_world(at.x, at.y)
 	unit.display_name = data.get("display_name", "Unit")
 	unit.faction = data.get("faction", NPC.Faction.ENEMY)
+	unit.level = data.get("level", 1)
+	unit.base_armor = data.get("base_armor", 0)
 	if data.get("stats") != null:
 		unit.stats = data["stats"].duplicate()
 		unit.current_health = unit.max_health()

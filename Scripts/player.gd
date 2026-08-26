@@ -5,6 +5,7 @@ signal health_changed(current: int, maximum: int)
 signal died
 signal gold_changed(amount: int)
 signal xp_changed(amount: int)
+signal armor_changed(value: int)
 
 @export var speed: float = 5.0
 @export var interaction_range: float = 2.0
@@ -12,6 +13,8 @@ signal xp_changed(amount: int)
 @export var display_name: String = "Hero"
 @export var gold: int = 0
 @export var xp: int = 0
+@export var level: int = 1
+@export var base_armor: int = 0
 
 var target_position: Vector3
 var interaction_target = null
@@ -180,6 +183,8 @@ func save_state() -> Dictionary:
 		"health": current_health,
 		"gold": gold,
 		"xp": xp,
+		"level": level,
+		"base_armor": base_armor,
 	}
 
 func load_state(data: Dictionary) -> void:
@@ -193,6 +198,22 @@ func load_state(data: Dictionary) -> void:
 	health_changed.emit(current_health, max_health())
 	gold_changed.emit(gold)
 	xp_changed.emit(xp)
+	level = data.get("level", 1)
+	base_armor = data.get("base_armor", 0)
+	armor_changed.emit(armor())
+	
+## Total armor: innate plus whatever equipment adds. Equipment slots plug in here.
+func armor() -> int:
+	return base_armor + equipment_armor()
+
+
+func equipment_armor() -> int:
+	return 0          # replaced when inventory lands
+
+
+func add_armor(amount: int) -> void:
+	base_armor = maxi(0, base_armor + amount)
+	armor_changed.emit(armor())
 
 # ---------------------------------------------------------------- health
 

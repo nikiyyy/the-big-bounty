@@ -98,9 +98,9 @@ func start_battle(battle_scene_path: String, enemy_source: Node) -> void:
 	_return_world_path = current_world.scene_file_path
 	_return_position = player.global_position
 
-	var enemy_data: Dictionary = {}
-	if enemy_source and enemy_source.has_method("to_battle_data"):
-		enemy_data = enemy_source.to_battle_data()
+	var enemy_group: Dictionary = {}
+	if enemy_source and enemy_source.has_method("to_battle_group"):
+		enemy_group = enemy_source.to_battle_group()
 
 	var ally_data: Array = []
 	_collect_followers(current_world, ally_data)
@@ -109,7 +109,7 @@ func start_battle(battle_scene_path: String, enemy_source: Node) -> void:
 	await load_world(battle_scene_path)
 
 	if current_world.has_method("setup_battle"):
-		current_world.setup_battle(player, enemy_data, ally_data)
+		current_world.setup_battle(player, enemy_group, ally_data)
 	battle_started.emit(current_world)
 
 

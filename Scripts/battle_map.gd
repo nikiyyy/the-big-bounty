@@ -235,43 +235,45 @@ func _tile_color(col: int, row: int) -> Color:
 		return COLOR_OBSTACLE
 	if _rough.has(h):
 		return COLOR_ROUGH
-	if row < deploy_rows:
+	if col < deploy_rows:
 		return Color(0.24, 0.42, 0.30)
-	if row >= rows - deploy_rows:
+	if col >= columns - deploy_rows:
 		return Color(0.44, 0.24, 0.24)
 	return Color(0.34, 0.34, 0.38) if (col + row) % 2 == 0 else Color(0.29, 0.29, 0.33)
-
 # ------------------------------------------------------------ world interface
 
 func get_spawn_position(spawn_name: String) -> Vector3:
-	var mid: int = int(columns / 2)
+	var mid: int = int(rows / 2)
 	if spawn_name == "EnemySpawn":
-		return hex_to_world(mid, rows - 2)
-	return hex_to_world(mid, 1)
+		return hex_to_world(columns - 2, mid)
+	return hex_to_world(1, mid)
 
-func setup_battle(player: Node, enemy_data: Dictionary, ally_data: Array = []) -> void:
-	var mid: int = int(columns / 2)
-
+func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) -> void:
 	_units = [player]
 	_hexes[player] = world_to_hex(player.global_position)
 	HealthTag.attach(player)
 	if player.has_signal("died"):
 		player.died.connect(_on_unit_died.bind(player))
 
-	# allies fan out beside the player
-	var side: int = 1
-	for data in ally_data:
-		var offset: int = (side + 1) / 2 * (1 if side % 2 == 1 else -1)
-		var ally = _spawn_unit(data, Vector2i(clampi(mid + offset, 0, columns - 1), 1))
+	# allies fill the near deploy band, skipping the hex the player is on
+	var ally_slots: Array = _deploy_slots(ally_data.size(), false)
+	for i in ally_data.size():
+		if i >= ally_slots.size():
+			break
+		var ally = _spawn_unit(ally_data[i], ally_slots[i], NPC.Faction.ALLY)
 		if ally:
 			_allies.append(ally)
 			_units.append(ally)
-		side += 1
 
-	var enemy = _spawn_unit(enemy_data, Vector2i(mid, rows - 2))
-	if enemy:
-		_enemies.append(enemy)
-		_units.append(enemy)
+	var members: Array = enemy_group.get("members", [])
+	var enemy_slots: Array = _deploy_slots(members.size(), true)
+	for i in members.size():
+		if i >= enemy_slots.size():
+			break
+		var foe = _spawn_unit(members[i], enemy_slots[i], NPC.Faction.ENEMY)
+		if foe:
+			_enemies.append(foe)
+			_units.append(foe)
 
 	combat = Combat.new()
 	combat.name = "Combat"
@@ -302,7 +304,34 @@ func setup_battle(player: Node, enemy_data: Dictionary, ally_data: Array = []) -
 	combat.begin()
 
 
-func _spawn_unit(data: Dictionary, at: Vector2i):
+## Free hexes in a deploy band, filling outward from the centre row.
+func _deploy_slots(count: int, enemy_side: bool) -> Array:
+	var mid: int = int(rows / 2)
+	var band: Array = []
+	for i in deploy_rows:
+		band.append(columns - 1 - i if enemy_side else i)
+
+	var offsets: Array = [0]
+	for d in range(1, rows):
+		offsets.append(d)
+		offsets.append(-d)
+
+	var slots: Array = []
+	for off in offsets:
+		for c in band:
+			var row: int = mid + off
+			if row < 0 or row >= rows:
+				continue
+			var h := Vector2i(c, row)
+			if is_occupied(h) or slots.has(h):
+				continue
+			slots.append(h)
+			if slots.size() >= count:
+				return slots
+	return slots
+
+
+func _spawn_unit(data: Dictionary, at: Vector2i, faction: int):
 	var packed: PackedScene = load("res://scenes/npc.tscn")
 	if packed == null:
 		push_error("BattleMap: no npc.tscn at res://scenes/npc.tscn")
@@ -311,7 +340,7 @@ func _spawn_unit(data: Dictionary, at: Vector2i):
 	add_child(unit)
 	unit.global_position = hex_to_world(at.x, at.y)
 	unit.display_name = data.get("display_name", "Unit")
-	unit.faction = data.get("faction", NPC.Faction.ENEMY)
+	unit.faction = faction
 	unit.level = data.get("level", 1)
 	unit.base_armor = data.get("base_armor", 0)
 	if data.get("stats") != null:
@@ -675,7 +704,7 @@ func _is_free_ground(h: Vector2i, into: Dictionary) -> bool:
 
 
 func _in_deploy_zone(h: Vector2i) -> bool:
-	return h.y < deploy_rows or h.y >= rows - deploy_rows
+	return h.x < deploy_rows or h.x >= columns - deploy_rows
 
 
 func is_obstacle(h: Vector2i) -> bool:

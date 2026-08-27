@@ -3,12 +3,58 @@
 [ext_resource type="PackedScene" uid="uid://dr6kk0pu3run3" path="res://scenes/floor.tscn" id="1_yyqkk"]
 [ext_resource type="PackedScene" uid="uid://kopod8vi4sng" path="res://scenes/npc.tscn" id="2_fwfmv"]
 [ext_resource type="Script" uid="uid://qlg6oc76b8q2" path="res://Scripts/stats.gd" id="3_fwfmv"]
+[ext_resource type="Script" uid="uid://uc2jbresri3e" path="res://Scripts/unit_template.gd" id="4_m22rl"]
+[ext_resource type="Script" uid="uid://cinijcs8mk7ec" path="res://Scripts/combat_ai.gd" id="5_v0b4f"]
 
 [sub_resource type="Resource" id="Resource_m22rl"]
 script = ExtResource("3_fwfmv")
 health = 5
 haste = 3
 metadata/_custom_type_script = "uid://qlg6oc76b8q2"
+
+[sub_resource type="Resource" id="Resource_fedbm"]
+script = ExtResource("5_v0b4f")
+metadata/_custom_type_script = "uid://cinijcs8mk7ec"
+
+[sub_resource type="Resource" id="Resource_cg4qs"]
+script = ExtResource("3_fwfmv")
+metadata/_custom_type_script = "uid://qlg6oc76b8q2"
+
+[sub_resource type="Resource" id="Resource_v0b4f"]
+script = ExtResource("4_m22rl")
+stats = SubResource("Resource_cg4qs")
+ai = SubResource("Resource_fedbm")
+metadata/_custom_type_script = "uid://uc2jbresri3e"
+
+[sub_resource type="Resource" id="Resource_pl87k"]
+script = ExtResource("5_v0b4f")
+metadata/_custom_type_script = "uid://cinijcs8mk7ec"
+
+[sub_resource type="Resource" id="Resource_r30v4"]
+script = ExtResource("3_fwfmv")
+metadata/_custom_type_script = "uid://qlg6oc76b8q2"
+
+[sub_resource type="Resource" id="Resource_ltyuv"]
+script = ExtResource("4_m22rl")
+stats = SubResource("Resource_r30v4")
+ai = SubResource("Resource_pl87k")
+metadata/_custom_type_script = "uid://uc2jbresri3e"
+
+[sub_resource type="Resource" id="Resource_kxl67"]
+script = ExtResource("5_v0b4f")
+metadata/_custom_type_script = "uid://cinijcs8mk7ec"
+
+[sub_resource type="Resource" id="Resource_la4ba"]
+script = ExtResource("3_fwfmv")
+haste = 5
+metadata/_custom_type_script = "uid://qlg6oc76b8q2"
+
+[sub_resource type="Resource" id="Resource_bgisd"]
+script = ExtResource("4_m22rl")
+display_name = "test"
+stats = SubResource("Resource_la4ba")
+ai = SubResource("Resource_kxl67")
+metadata/_custom_type_script = "uid://uc2jbresri3e"
 
 [node name="Overworld" type="Node3D" unique_id=646308099]
 
@@ -19,20 +65,29 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0034023523, 0, -0.012567997
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.349845, 0.10000038, 5.8358145)
 faction = 0
 display_name = "Aela"
+level = 1
+base_armor = 0
 
 [node name="NPC" parent="NPC" unique_id=1900716751 instance=ExtResource("2_fwfmv")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7534189, 0.10000038, -5.2703304)
 faction = 0
 display_name = "Aela"
+level = 1
+base_armor = 0
 
 [node name="NPC2" parent="." unique_id=1283164643 instance=ExtResource("2_fwfmv")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2593198, 0.09999943, 7.078424)
 display_name = "merchant"
+level = 1
+base_armor = 0
 
 [node name="NPC3" parent="." unique_id=677490741 instance=ExtResource("2_fwfmv")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.382188, 0.10000038, 4.5300207)
 faction = 1
 display_name = "Bandit"
 stats = SubResource("Resource_m22rl")
+level = 1
+base_armor = 0
+party = Array[ExtResource("4_m22rl")]([SubResource("Resource_v0b4f"), SubResource("Resource_ltyuv"), SubResource("Resource_bgisd")])
 
 [node name="PlayerSpawn" type="Marker3D" parent="." unique_id=383359081]

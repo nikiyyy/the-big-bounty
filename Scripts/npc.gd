@@ -19,6 +19,7 @@ const FACTION_COLORS := {
 @export_multiline var greeting: String = "Hello there, traveller."
 @export_multiline var response: String = "Nice weather we're having."
 
+@export_group("Battle group")
 @export_group("Follow")
 @export var move_speed: float = 5.5
 @export var follow_distance: float = 3.0
@@ -27,6 +28,7 @@ const FACTION_COLORS := {
 @export var ai: CombatAI
 @export var level: int = 1
 @export var base_armor: int = 0
+@export var party: Array[UnitTemplate] = []
 
 var follow_target: Node3D = null
 var _walking: bool = false
@@ -114,15 +116,33 @@ func _physics_process(delta: float) -> void:
 	velocity.y = 0.0 if is_on_floor() else velocity.y - 20.0 * delta
 	move_and_slide()
 
-func to_battle_data() -> Dictionary:
-	return {
-		"display_name": display_name,
-		"faction": faction,
-		"stats": stats,
-		"ai": ai,
-		"level": level,
-		"base_armor": base_armor,
-	}
+## The whole army this figure represents. An empty party means it fights alone.
+func to_battle_group() -> Dictionary:
+	var members: Array = []
+
+	if party.is_empty():
+		members.append({
+			"display_name": display_name,
+			"stats": stats,
+			"ai": ai,
+			"level": level,
+			"base_armor": base_armor,
+		})
+	else:
+		for template in party:
+			if template == null:
+				continue
+			for i in template.count:
+				members.append({
+					"display_name": template.display_name if template.count == 1
+						else "%s %d" % [template.display_name, i + 1],
+					"stats": template.stats,
+					"ai": template.ai,
+					"level": template.level,
+					"base_armor": template.base_armor,
+				})
+
+	return {"name": display_name, "members": members}
 
 func save_state() -> Dictionary:
 	return {

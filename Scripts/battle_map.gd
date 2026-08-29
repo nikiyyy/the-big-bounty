@@ -442,13 +442,13 @@ func _ai_attack(attacker, target) -> bool:
 	_strike(attacker, target)
 	return true
 
-
 func _strike(attacker, target) -> void:
 	var power: int = 1
 	if "stats" in attacker and attacker.stats != null:
 		power = attacker.stats.strength
 	_face_unit(attacker, target)
 	print("%s hits %s for %d" % [_name_of(attacker), _name_of(target), power])
+	DamageNumber.spawn(target, power)
 	target.take_damage(power)
 
 

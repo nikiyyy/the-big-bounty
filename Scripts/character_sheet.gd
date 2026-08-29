@@ -2,8 +2,11 @@ extends Control
 ## Press Tab to open. Builds its own layout so adding a stat to Stats.NAMES
 ## is the only change needed to show it here.
 
-var player: Node = null
 
+const INVENTORY_CELLS := 18
+var player: Node = null
+var _slot_buttons: Dictionary = {}
+var _item_buttons: Array = []
 var _panel: PanelContainer
 var _header: Label
 var _points_label: Label
@@ -68,53 +71,140 @@ func _build() -> void:
 	_panel.add_theme_stylebox_override("panel", box)
 	center.add_child(_panel)
 
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
-	column.custom_minimum_size = Vector2(340, 0)
-	_panel.add_child(column)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 12)
+	_panel.add_child(outer)
 
 	_header = Label.new()
 	_header.add_theme_font_size_override("font_size", 20)
-	column.add_child(_header)
+	outer.add_child(_header)
 
-	_points_label = Label.new()
-	_points_label.add_theme_font_size_override("font_size", 14)
-	column.add_child(_points_label)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 22)
+	outer.add_child(columns)
 
-	column.add_child(HSeparator.new())
-
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 6)
-	column.add_child(grid)
-
-	for stat_name in Stats.NAMES:
-		var name_label := Label.new()
-		name_label.text = Stats.LABELS[stat_name]
-		name_label.custom_minimum_size = Vector2(150, 0)
-		grid.add_child(name_label)
-
-		var value_label := Label.new()
-		value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		value_label.custom_minimum_size = Vector2(40, 0)
-		grid.add_child(value_label)
-
-		var button := Button.new()
-		button.text = "+"
-		button.custom_minimum_size = Vector2(34, 0)
-		button.pressed.connect(_on_raise.bind(stat_name))
-		grid.add_child(button)
-
-		_rows[stat_name] = {"value": value_label, "button": button}
-
-	column.add_child(HSeparator.new())
+	columns.add_child(_build_stats_panel())
+	columns.add_child(_build_equipment_panel())
+	columns.add_child(_build_inventory_panel())
 
 	var hint := Label.new()
 	hint.text = "Tab or Esc to close"
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.modulate = Color(1, 1, 1, 0.5)
-	column.add_child(hint)
+	outer.add_child(hint)
+
+
+func _build_stats_panel() -> Control:
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+	column.custom_minimum_size = Vector2(280, 0)
+
+	column.add_child(_section_title("Stats"))
+
+	_points_label = Label.new()
+	_points_label.add_theme_font_size_override("font_size", 14)
+	column.add_child(_points_label)
+
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 5)
+	column.add_child(grid)
+
+	for stat_name in Stats.NAMES:
+		var name_label := Label.new()
+		name_label.text = Stats.LABELS[stat_name]
+		name_label.custom_minimum_size = Vector2(140, 0)
+		grid.add_child(name_label)
+
+		var value_label := Label.new()
+		value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		value_label.custom_minimum_size = Vector2(36, 0)
+		grid.add_child(value_label)
+
+		var button := Button.new()
+		button.text = "+"
+		button.custom_minimum_size = Vector2(32, 0)
+		button.pressed.connect(_on_raise.bind(stat_name))
+		grid.add_child(button)
+
+		_rows[stat_name] = {"value": value_label, "button": button}
+
+	return column
+
+
+func _build_equipment_panel() -> Control:
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+	column.custom_minimum_size = Vector2(210, 0)
+
+	column.add_child(_section_title("Equipment"))
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(spacer)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	column.add_child(row)
+
+	for slot in Inventory.SLOT_ORDER:
+		var cell := VBoxContainer.new()
+		cell.add_theme_constant_override("separation", 4)
+
+		var button := _make_slot_button(Vector2(58, 58))
+		button.pressed.connect(_on_slot_pressed.bind(slot))
+		cell.add_child(button)
+
+		var caption := Label.new()
+		caption.text = Inventory.SLOT_LABELS[slot]
+		caption.add_theme_font_size_override("font_size", 11)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.modulate = Color(1, 1, 1, 0.6)
+		cell.add_child(caption)
+
+		row.add_child(cell)
+		_slot_buttons[slot] = button
+
+	return column
+
+
+func _build_inventory_panel() -> Control:
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+
+	column.add_child(_section_title("Inventory"))
+
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	column.add_child(grid)
+
+	for i in INVENTORY_CELLS:
+		var button := _make_slot_button(Vector2(58, 58))
+		button.pressed.connect(_on_item_pressed.bind(i))
+		grid.add_child(button)
+		_item_buttons.append(button)
+
+	return column
+
+
+func _section_title(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 15)
+	label.modulate = Color(1, 0.85, 0.5)
+	return label
+
+
+func _make_slot_button(size: Vector2) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = size
+	button.clip_text = true
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.add_theme_font_size_override("font_size", 11)
+	return button
 
 
 # ------------------------------------------------------------------- data
@@ -137,6 +227,31 @@ func _refresh() -> void:
 		_rows[stat_name]["value"].text = str(stats.get(stat_name))
 		_rows[stat_name]["button"].disabled = not stats.can_raise()
 
+	var inv: Inventory = player.inventory if "inventory" in player else null
+
+	for slot in Inventory.SLOT_ORDER:
+		var item: Item = inv.get_equipped(slot) if inv != null else null
+		_slot_buttons[slot].text = item.display_name if item != null else ""
+
+	for i in _item_buttons.size():
+		var carried: Item = null
+		if inv != null and i < inv.items.size():
+			carried = inv.items[i]
+		_item_buttons[i].text = carried.display_name if carried != null else ""
+
+
+func _on_slot_pressed(slot: int) -> void:
+	var inv: Inventory = player.inventory if "inventory" in player else null
+	if inv != null and inv.unequip(slot):
+		_refresh()
+
+
+func _on_item_pressed(index: int) -> void:
+	var inv: Inventory = player.inventory if "inventory" in player else null
+	if inv == null or index >= inv.items.size():
+		return
+	if inv.equip(inv.items[index]):
+		_refresh()
 
 func _on_raise(stat_name: String) -> void:
 	if player == null or player.stats == null:

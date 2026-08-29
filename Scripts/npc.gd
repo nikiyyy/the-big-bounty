@@ -29,6 +29,7 @@ const FACTION_COLORS := {
 @export var level: int = 1
 @export var base_armor: int = 0
 @export var party: Array[UnitTemplate] = []
+@export var inventory: Inventory
 
 var follow_target: Node3D = null
 var _walking: bool = false
@@ -38,6 +39,7 @@ signal walk_finished
 signal died
 
 func _ready() -> void:
+	inventory = inventory.duplicate(true) if inventory != null else Inventory.new()
 	if not Engine.is_editor_hint():
 		stats = stats.duplicate() if stats != null else Stats.new()
 		current_health = max_health()
@@ -176,7 +178,17 @@ func _next_waypoint() -> void:
 		_walk_target = _walk_queue.pop_front()
 
 func armor() -> int:
-	return base_armor
+	return base_armor + (inventory.total_armor() if inventory != null else 0)
+
+## This NPC as a single combatant, for when it joins your side.
+func to_ally_data() -> Dictionary:
+	return {
+		"display_name": display_name,
+		"stats": stats,
+		"ai": ai,
+		"level": level,
+		"base_armor": base_armor,
+	}
 
 #health stuff
 signal health_changed(current: int, maximum: int)

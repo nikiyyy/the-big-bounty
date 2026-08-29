@@ -150,6 +150,6 @@ func _restore_state(world: Node) -> void:
 func _collect_followers(node: Node, out: Array) -> void:
 	for child in node.get_children():
 		if child.has_method("is_following") and child.is_following():
-			if child.has_method("to_battle_data"):
-				out.append(child.to_battle_data())
+			if child.has_method("to_ally_data"):
+				out.append(child.to_ally_data())
 		_collect_followers(child, out)

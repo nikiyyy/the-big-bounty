@@ -15,6 +15,7 @@ signal armor_changed(value: int)
 @export var xp: int = 0
 @export var level: int = 1
 @export var base_armor: int = 0
+@export var inventory: Inventory
 
 var target_position: Vector3
 var interaction_target = null
@@ -26,6 +27,7 @@ var _waypoints: Array = []
 func _ready() -> void:
 	stats = stats.duplicate() if stats != null else Stats.new()
 	stats.changed_stat.connect(_on_stat_raised)
+	inventory = inventory.duplicate(true) if inventory != null else Inventory.new()
 	current_health = max_health()
 	target_position = global_position
 
@@ -172,7 +174,6 @@ func add_xp(amount: int) -> void:
 	xp_changed.emit(xp)
 
 func _on_stat_raised(stat_name: String) -> void:
-	print("stat raised: ", stat_name, " health now ", current_health, "/", max_health())
 	if stat_name == "health":
 		current_health += 1
 		health_changed.emit(current_health, max_health())
@@ -185,6 +186,7 @@ func save_state() -> Dictionary:
 		"xp": xp,
 		"level": level,
 		"base_armor": base_armor,
+		"inventory": inventory,
 	}
 
 func load_state(data: Dictionary) -> void:
@@ -192,23 +194,25 @@ func load_state(data: Dictionary) -> void:
 		stats = data["stats"]
 		if not stats.changed_stat.is_connected(_on_stat_raised):
 			stats.changed_stat.connect(_on_stat_raised)
+	if data.get("inventory") != null:
+		inventory = data["inventory"]
 	current_health = data.get("health", max_health())
 	gold = data.get("gold", 0)
 	xp = data.get("xp", 0)
+	level = data.get("level", 1)
+	base_armor = data.get("base_armor", 0)
 	health_changed.emit(current_health, max_health())
 	gold_changed.emit(gold)
 	xp_changed.emit(xp)
-	level = data.get("level", 1)
-	base_armor = data.get("base_armor", 0)
 	armor_changed.emit(armor())
-	
-## Total armor: innate plus whatever equipment adds. Equipment slots plug in here.
+
+## Total armor: innate plus whatever equipment adds.
 func armor() -> int:
 	return base_armor + equipment_armor()
 
 
 func equipment_armor() -> int:
-	return 0          # replaced when inventory lands
+	return inventory.total_armor() if inventory != null else 0
 
 
 func add_armor(amount: int) -> void:
@@ -239,7 +243,6 @@ func _die() -> void:
 func heal(amount: int) -> void:
 	current_health = mini(max_health(), current_health + amount)
 	health_changed.emit(current_health, max_health())
-	
+
 func is_alive() -> bool:
 	return current_health > 0
-	

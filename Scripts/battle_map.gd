@@ -346,6 +346,8 @@ func _spawn_unit(data: Dictionary, at: Vector2i, faction: int):
 	if data.get("stats") != null:
 		unit.stats = data["stats"].duplicate()
 		unit.current_health = unit.max_health()
+	if data.get("inventory") != null:
+		unit.inventory = data["inventory"]
 	if data.get("ai") != null:
 		unit.ai = data["ai"]
 	unit.stop_following()

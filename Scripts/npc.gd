@@ -151,11 +151,21 @@ func save_state() -> Dictionary:
 		"position": global_position,
 		"rotation_y": rotation.y,
 		"following": is_following(),
+		"stats": stats,
+		"inventory": inventory,
+		"level": level,
+		"base_armor": base_armor,
 	}
 
 func load_state(data: Dictionary) -> void:
 	global_position = data.get("position", global_position)
 	rotation.y = data.get("rotation_y", rotation.y)
+	if data.get("stats") != null:
+		stats = data["stats"]
+	if data.get("inventory") != null:
+		inventory = data["inventory"]
+	level = data.get("level", level)
+	base_armor = data.get("base_armor", base_armor)
 	if data.get("following", false) and Game.player != null:
 		start_following(Game.player)
 
@@ -188,6 +198,7 @@ func to_ally_data() -> Dictionary:
 		"ai": ai,
 		"level": level,
 		"base_armor": base_armor,
+		"inventory": inventory,
 	}
 
 #health stuff

@@ -2,8 +2,15 @@ extends Control
 ## Press Tab to open. Builds its own layout so adding a stat to Stats.NAMES
 ## is the only change needed to show it here.
 
-
+const PORTRAIT_SIZE := 48
+const COLOR_PLAYER := Color(0.92, 0.92, 0.90)
+const COLOR_ALLY := Color(0.25, 0.75, 0.35)
+const COLOR_SELECTED := Color(1.0, 0.85, 0.35)
 const INVENTORY_CELLS := 18
+
+var _selected = null
+var _party_row: HBoxContainer
+var _portraits: Dictionary = {}      # unit -> Button
 var player: Node = null
 var _slot_buttons: Dictionary = {}
 var _item_buttons: Array = []
@@ -78,6 +85,10 @@ func _build() -> void:
 	_header = Label.new()
 	_header.add_theme_font_size_override("font_size", 20)
 	outer.add_child(_header)
+
+	_party_row = HBoxContainer.new()
+	_party_row.add_theme_constant_override("separation", 8)
+	outer.add_child(_party_row)
 
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 22)
@@ -227,15 +238,23 @@ func _make_slot_button(size: Vector2, kind: String, key) -> Button:
 # ------------------------------------------------------------------- data
 
 func _refresh() -> void:
-	if player == null or not is_instance_valid(player) or player.stats == null:
+	if player == null or not is_instance_valid(player):
+		return
+	if _selected == null or not is_instance_valid(_selected):
+		_selected = player
+
+	_rebuild_party()
+
+	var unit = _selected
+	var stats: Stats = unit.stats
+	if stats == null:
 		return
 
-	var stats: Stats = player.stats
-	var who: String = player.display_name if "display_name" in player else "Hero"
+	var who: String = unit.display_name if "display_name" in unit else "Unit"
+	var level: int = unit.level if "level" in unit else 1
+	var armor: int = unit.armor() if unit.has_method("armor") else 0
 	var gold: int = player.gold if "gold" in player else 0
 	var xp: int = player.xp if "xp" in player else 0
-	var level: int = player.level if "level" in player else 1
-	var armor: int = player.armor() if player.has_method("armor") else 0
 
 	_header.text = "%s   lvl %d   armor %d   %d gold   %d xp" % [who, level, armor, gold, xp]
 	_points_label.text = "Points to spend: %d" % stats.available_points
@@ -244,16 +263,17 @@ func _refresh() -> void:
 		_rows[stat_name]["value"].text = str(stats.get(stat_name))
 		_rows[stat_name]["button"].disabled = not stats.can_raise()
 
-	var inv: Inventory = player.inventory if "inventory" in player else null
-
+	var gear: Inventory = unit.inventory if "inventory" in unit else null
 	for slot in Inventory.SLOT_ORDER:
-		_paint_cell(_slot_buttons[slot], inv.get_equipped(slot) if inv != null else null)
+		_paint_cell(_slot_buttons[slot], gear.get_equipped(slot) if gear != null else null)
 
+	var pack: Inventory = _backpack()
 	for i in _item_buttons.size():
 		var carried: Item = null
-		if inv != null and i < inv.items.size():
-			carried = inv.items[i]
+		if pack != null and i < pack.items.size():
+			carried = pack.items[i]
 		_paint_cell(_item_buttons[i], carried)
+
 
 func _on_slot_pressed(slot: int) -> void:
 	var inv: Inventory = player.inventory if "inventory" in player else null
@@ -269,9 +289,9 @@ func _on_item_pressed(index: int) -> void:
 		_refresh()
 
 func _on_raise(stat_name: String) -> void:
-	if player == null or player.stats == null:
+	if _selected == null or _selected.stats == null:
 		return
-	if player.stats.raise(stat_name):
+	if _selected.stats.raise(stat_name):
 		_refresh()
 
 func _paint_cell(button: Button, item: Item) -> void:
@@ -288,19 +308,27 @@ func _paint_cell(button: Button, item: Item) -> void:
 # ------------------------------------------------------------ drag and drop
 ## Bound args arrive after the engine's own, hence (at, [data,] kind, key).
 
-func _inventory() -> Inventory:
+## The backpack is always the player's; equipment belongs to the selected unit.
+func _backpack() -> Inventory:
 	if player == null or not is_instance_valid(player) or not "inventory" in player:
 		return null
 	return player.inventory
 
 
-func _item_at(kind: String, key) -> Item:
-	var inv := _inventory()
-	if inv == null:
+func _gear() -> Inventory:
+	if _selected == null or not is_instance_valid(_selected) or not "inventory" in _selected:
 		return null
+	return _selected.inventory
+
+
+func _item_at(kind: String, key) -> Item:
 	if kind == "equipment":
-		return inv.get_equipped(key)
-	return inv.items[key] if key < inv.items.size() else null
+		var gear := _gear()
+		return gear.get_equipped(key) if gear != null else null
+	var pack := _backpack()
+	if pack == null or key >= pack.items.size():
+		return null
+	return pack.items[key]
 
 
 func _drag_from(_at: Vector2, kind: String, key) -> Variant:
@@ -326,18 +354,77 @@ func _can_drop_here(_at: Vector2, data: Variant, kind: String, key) -> bool:
 
 
 func _drop_here(_at: Vector2, data: Variant, kind: String, key) -> void:
-	var inv := _inventory()
-	if inv == null:
+	var pack := _backpack()
+	var gear := _gear()
+	if pack == null or gear == null:
 		return
 	var item: Item = data["item"]
 
 	if kind == "equipment":
 		if data["kind"] == "inventory":
-			inv.equip_to(item, key)
+			gear.equip_from(pack, item, key)
 	else:
 		if data["kind"] == "equipment":
-			inv.unequip(data["key"])
+			gear.unequip_to(pack, data["key"])
 		else:
-			inv.swap_items(data["key"], key)
+			pack.swap_items(data["key"], key)
 
+	_refresh()
+# ---------------------------------------------------------------- party bar
+
+func _party() -> Array:
+	var out: Array = [player]
+	if Game.current_world != null:
+		_collect_allies(Game.current_world, out)
+	return out
+
+
+func _collect_allies(node: Node, out: Array) -> void:
+	for child in node.get_children():
+		if child.has_method("is_following") and child.is_following():
+			out.append(child)
+		_collect_allies(child, out)
+
+
+func _rebuild_party() -> void:
+	for child in _party_row.get_children():
+		child.queue_free()
+	_portraits.clear()
+
+	var members: Array = _party()
+	if not members.has(_selected):
+		_selected = player
+
+	for unit in members:
+		if unit == null or not is_instance_valid(unit):
+			continue
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(PORTRAIT_SIZE, PORTRAIT_SIZE)
+		button.tooltip_text = unit.display_name if "display_name" in unit else "Unit"
+		button.pressed.connect(_on_portrait_pressed.bind(unit))
+		_party_row.add_child(button)
+		_portraits[unit] = button
+
+	_paint_portraits()
+
+
+## Round buttons: a StyleBoxFlat whose corner radius is half its height.
+func _paint_portraits() -> void:
+	for unit in _portraits.keys():
+		var fill: Color = COLOR_PLAYER if unit == player else COLOR_ALLY
+
+		var normal := StyleBoxFlat.new()
+		normal.bg_color = fill
+		normal.set_corner_radius_all(int(PORTRAIT_SIZE / 2.0))
+		if unit == _selected:
+			normal.border_color = COLOR_SELECTED
+			normal.set_border_width_all(3)
+
+		_portraits[unit].add_theme_stylebox_override("normal", normal)
+		_portraits[unit].add_theme_stylebox_override("hover", normal)
+		_portraits[unit].add_theme_stylebox_override("pressed", normal)
+
+
+func _on_portrait_pressed(unit) -> void:
+	_selected = unit
 	_refresh()

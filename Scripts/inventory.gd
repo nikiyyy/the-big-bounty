@@ -99,3 +99,26 @@ func swap_items(a: int, b: int) -> void:
 		items[a] = items[b]
 		items[b] = tmp
 	inventory_changed.emit()
+
+## Take an item out of another inventory's backpack and wear it here.
+func equip_from(source: Inventory, item: Item, slot: int) -> bool:
+	if item == null or source == null or item.slot != slot:
+		return false
+	unequip_to(source, slot)
+	source.items.erase(item)
+	equipped[slot] = item
+	inventory_changed.emit()
+	source.inventory_changed.emit()
+	return true
+
+
+## Remove what's worn in a slot and drop it into another inventory's backpack.
+func unequip_to(target: Inventory, slot: int) -> bool:
+	var current = equipped.get(slot)
+	if current == null:
+		return false
+	equipped.erase(slot)
+	if target != null and not target.is_full():
+		target.items.append(current)
+	inventory_changed.emit()
+	return true

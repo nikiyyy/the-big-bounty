@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Item" format=3 uid="uid://cfac5cojiqmvg"]
+
+[ext_resource type="Script" uid="uid://30l2ylr7plcx" path="res://Scripts/item.gd" id="1_55rmp"]
+
+[resource]
+script = ExtResource("1_55rmp")
+display_name = "Simple sword"
+description = "A plain blade. It does the job."
+kind = 0
+slot = 0
+value = 10
+damage_min = 1
+damage_max = 3
+metadata/_custom_type_script = "uid://30l2ylr7plcx"

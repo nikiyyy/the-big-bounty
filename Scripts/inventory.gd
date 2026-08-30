@@ -75,3 +75,27 @@ func total_damage_bonus() -> int:
 	for item in equipped.values():
 		total += item.damage_bonus
 	return total
+	
+## Equip into an explicit slot, rejecting items that don't fit it.
+func equip_to(item: Item, slot: int) -> bool:
+	if item == null or item.slot != slot:
+		return false
+	unequip(slot)
+	items.erase(item)
+	equipped[slot] = item
+	inventory_changed.emit()
+	return true
+
+
+func swap_items(a: int, b: int) -> void:
+	if a == b or a < 0 or a >= items.size():
+		return
+	if b >= items.size():
+		var moved: Item = items[a]
+		items.remove_at(a)
+		items.append(moved)
+	else:
+		var tmp: Item = items[a]
+		items[a] = items[b]
+		items[b] = tmp
+	inventory_changed.emit()

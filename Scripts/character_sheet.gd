@@ -152,7 +152,7 @@ func _build_equipment_panel() -> Control:
 		var cell := VBoxContainer.new()
 		cell.add_theme_constant_override("separation", 4)
 
-		var button := _make_slot_button(Vector2(58, 58))
+		var button := _make_slot_button(Vector2(58, 58), "equipment", slot)
 		button.pressed.connect(_on_slot_pressed.bind(slot))
 		cell.add_child(button)
 
@@ -182,7 +182,7 @@ func _build_inventory_panel() -> Control:
 	column.add_child(grid)
 
 	for i in INVENTORY_CELLS:
-		var button := _make_slot_button(Vector2(58, 58))
+		var button := _make_slot_button(Vector2(58, 58), "inventory", i)
 		button.pressed.connect(_on_item_pressed.bind(i))
 		grid.add_child(button)
 		_item_buttons.append(button)
@@ -198,12 +198,29 @@ func _section_title(text: String) -> Label:
 	return label
 
 
-func _make_slot_button(size: Vector2) -> Button:
+func _make_slot_button(size: Vector2, kind: String, key) -> Button:
 	var button := Button.new()
 	button.custom_minimum_size = size
 	button.clip_text = true
-	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	button.add_theme_font_size_override("font_size", 11)
+	button.add_theme_font_size_override("font_size", 10)
+
+	var icon := ColorRect.new()
+	icon.name = "Icon"
+	icon.color = Color(0.55, 0.35, 0.85)
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = 6
+	icon.offset_top = 6
+	icon.offset_right = -6
+	icon.offset_bottom = -6
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.visible = false
+	button.add_child(icon)
+
+	button.set_drag_forwarding(
+		_drag_from.bind(kind, key),
+		_can_drop_here.bind(kind, key),
+		_drop_here.bind(kind, key)
+	)
 	return button
 
 
@@ -230,15 +247,13 @@ func _refresh() -> void:
 	var inv: Inventory = player.inventory if "inventory" in player else null
 
 	for slot in Inventory.SLOT_ORDER:
-		var item: Item = inv.get_equipped(slot) if inv != null else null
-		_slot_buttons[slot].text = item.display_name if item != null else ""
+		_paint_cell(_slot_buttons[slot], inv.get_equipped(slot) if inv != null else null)
 
 	for i in _item_buttons.size():
 		var carried: Item = null
 		if inv != null and i < inv.items.size():
 			carried = inv.items[i]
-		_item_buttons[i].text = carried.display_name if carried != null else ""
-
+		_paint_cell(_item_buttons[i], carried)
 
 func _on_slot_pressed(slot: int) -> void:
 	var inv: Inventory = player.inventory if "inventory" in player else null
@@ -258,3 +273,71 @@ func _on_raise(stat_name: String) -> void:
 		return
 	if player.stats.raise(stat_name):
 		_refresh()
+
+func _paint_cell(button: Button, item: Item) -> void:
+	var icon: ColorRect = button.get_node("Icon")
+	icon.visible = item != null
+	if item != null:
+		icon.color = Color(0.55, 0.35, 0.85)
+		button.tooltip_text = item.tooltip()
+		button.modulate = item.rarity_color()
+	else:
+		button.tooltip_text = ""
+		button.modulate = Color.WHITE
+
+# ------------------------------------------------------------ drag and drop
+## Bound args arrive after the engine's own, hence (at, [data,] kind, key).
+
+func _inventory() -> Inventory:
+	if player == null or not is_instance_valid(player) or not "inventory" in player:
+		return null
+	return player.inventory
+
+
+func _item_at(kind: String, key) -> Item:
+	var inv := _inventory()
+	if inv == null:
+		return null
+	if kind == "equipment":
+		return inv.get_equipped(key)
+	return inv.items[key] if key < inv.items.size() else null
+
+
+func _drag_from(_at: Vector2, kind: String, key) -> Variant:
+	var item: Item = _item_at(kind, key)
+	if item == null:
+		return null
+
+	var preview := ColorRect.new()
+	preview.color = Color(0.55, 0.35, 0.85, 0.8)
+	preview.custom_minimum_size = Vector2(48, 48)
+	preview.size = Vector2(48, 48)
+	set_drag_preview(preview)
+
+	return {"kind": kind, "key": key, "item": item}
+
+
+func _can_drop_here(_at: Vector2, data: Variant, kind: String, key) -> bool:
+	if typeof(data) != TYPE_DICTIONARY or not data.has("item"):
+		return false
+	if kind == "equipment":
+		return data["item"].slot == key      # only items that fit this slot
+	return true
+
+
+func _drop_here(_at: Vector2, data: Variant, kind: String, key) -> void:
+	var inv := _inventory()
+	if inv == null:
+		return
+	var item: Item = data["item"]
+
+	if kind == "equipment":
+		if data["kind"] == "inventory":
+			inv.equip_to(item, key)
+	else:
+		if data["kind"] == "equipment":
+			inv.unequip(data["key"])
+		else:
+			inv.swap_items(data["key"], key)
+
+	_refresh()

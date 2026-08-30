@@ -420,7 +420,7 @@ func request_attack(attacker, target) -> bool:
 
 	var a: Vector2i = _hexes.get(attacker, world_to_hex(attacker.global_position))
 	var b: Vector2i = _hexes.get(target, world_to_hex(target.global_position))
-	if hex_distance(a, b) > 1:
+	if hex_distance(a, b) > _reach_of(attacker):
 		print("Too far to attack.")
 		return false
 
@@ -437,20 +437,39 @@ func _ai_attack(attacker, target) -> bool:
 		return false
 	var a: Vector2i = _hexes.get(attacker, world_to_hex(attacker.global_position))
 	var b: Vector2i = _hexes.get(target, world_to_hex(target.global_position))
-	if hex_distance(a, b) > 1:
+	if hex_distance(a, b) > _reach_of(attacker):
 		return false
 	_strike(attacker, target)
 	return true
 
 func _strike(attacker, target) -> void:
-	var power: int = 1
+	var strength: int = 1
 	if "stats" in attacker and attacker.stats != null:
-		power = attacker.stats.strength
-	_face_unit(attacker, target)
-	print("%s hits %s for %d" % [_name_of(attacker), _name_of(target), power])
-	DamageNumber.spawn(target, power)
-	target.take_damage(power)
+		strength = attacker.stats.strength
 
+	var weapon: Item = _weapon_of(attacker)
+	var roll: int = weapon.roll_damage() if weapon != null else 0
+	var total: int = strength + roll
+
+	_face_unit(attacker, target)
+	print("%s hits %s for %d (%d str + %d roll)" % [
+		_name_of(attacker), _name_of(target), total, strength, roll
+	])
+	DamageNumber.spawn(target, total)
+	target.take_damage(total)
+
+
+func _weapon_of(unit) -> Item:
+	if not "inventory" in unit or unit.inventory == null:
+		return null
+	var item: Item = unit.inventory.get_equipped(Item.Slot.MAIN_HAND)
+	return item if item != null and item.is_weapon() else null
+
+
+## How far this unit can strike — its weapon's reach, or 1 bare-handed.
+func _reach_of(unit) -> int:
+	var weapon: Item = _weapon_of(unit)
+	return weapon.reach if weapon != null else 1
 
 func _face_unit(unit, target) -> void:
 	var flat := Vector3(target.global_position.x, unit.global_position.y, target.global_position.z)

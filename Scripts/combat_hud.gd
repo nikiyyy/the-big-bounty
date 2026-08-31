@@ -95,6 +95,13 @@ func _make_entry(unit) -> Control:
 	health.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	health.add_theme_font_size_override("font_size", 13)
 
+	var init_label := Label.new()
+	init_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	init_label.add_theme_font_size_override("font_size", 11)
+	init_label.modulate = Color(1, 1, 1, 0.6)
+	init_label.text = str(int(combat.initiative.get(unit, 0.0))) if combat != null else ""
+	column.add_child(init_label)
+
 	column.add_child(swatch)
 	column.add_child(health)
 	frame.add_child(column)

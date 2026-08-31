@@ -8,6 +8,7 @@ signal movement_changed(remaining: int, maximum: int)
 signal order_changed(order: Array)
 signal actions_changed(remaining: int)
 
+var initiative: Dictionary = {}      # unit -> rolled score
 var order: Array = []
 var index: int = -1
 var round_number: int = 1
@@ -24,15 +25,36 @@ var is_player_side: Callable = Callable()
 
 func setup(units: Array) -> void:
 	order = units.duplicate()
-	order_changed.emit(order)
+	roll_initiative()
 
+## Everyone rolls d20 + haste. Rerolled at the top of each round.
+func roll_initiative() -> void:
+	initiative.clear()
+	for unit in order:
+		if not is_instance_valid(unit):
+			continue
+		var haste: int = 0
+		if "stats" in unit and unit.stats != null:
+			haste = unit.stats.haste
+		var roll: int = randi_range(1, 20)
+		# fractional tiebreak so equal totals still get a stable, random order
+		initiative[unit] = float(roll + haste) + randf() * 0.001
+
+	order.sort_custom(func(a, b): return initiative.get(a, 0.0) > initiative.get(b, 0.0))
+	order_changed.emit(order)
 
 func begin() -> void:
 	index = -1
 	round_number = 1
+	_print_order()
 	_advance()
 
-
+func _print_order() -> void:
+	print("--- Initiative, round %d ---" % round_number)
+	for unit in order:
+		if is_instance_valid(unit) and (not unit.has_method("is_alive") or unit.is_alive()):
+			print("  %s: %d" % [_label(unit), int(initiative.get(unit, 0.0))])
+			
 func player_controlled() -> bool:
 	if active == null or not is_player_side.is_valid():
 		return false

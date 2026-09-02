@@ -246,7 +246,6 @@ func _tile_color(col: int, row: int) -> Color:
 	if col >= columns - deploy_rows:
 		return Color(0.44, 0.24, 0.24)
 	return Color(0.34, 0.34, 0.38) if (col + row) % 2 == 0 else Color(0.29, 0.29, 0.33)
-
 # ------------------------------------------------------------ world interface
 
 func get_spawn_position(spawn_name: String) -> Vector3:
@@ -295,8 +294,6 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 		_hud = hud_packed.instantiate()
 		add_child(_hud)
 		_hud.bind(combat)
-		_hud.unit_hovered.connect(set_portrait_hover)
-		_hud.unit_unhovered.connect(func(): set_portrait_hover(null))
 
 	var cam_packed: PackedScene = load(COMBAT_CAMERA_PATH)
 	if cam_packed:
@@ -310,7 +307,6 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 		_camera.focus_on(player.global_position)
 
 	combat.movement_changed.connect(_on_movement_changed)
-	combat.turn_changed.connect(func(_u, _r, _p): _refresh_preview())
 	combat.begin()
 
 
@@ -418,7 +414,7 @@ func request_move(unit, to: Vector3):
 
 # ------------------------------------------------------------------ attacking
 
-## Melee attack: must be in reach, costs the turn's action.
+## Melee attack: must be adjacent, costs the turn's action, damage = strength.
 func request_attack(attacker, target) -> bool:
 	if combat == null or attacker != combat.active or not combat.can_act():
 		return false
@@ -496,11 +492,6 @@ func _name_of(unit) -> String:
 func _on_unit_died(unit) -> void:
 	print("%s is down." % _name_of(unit))
 	_hexes.erase(unit)
-	if _hover_unit == unit:
-		_hover_unit = null
-		_portrait_hover = null
-		_world_hover = null
-		_refresh_preview()
 	_refresh_reachable()
 	if combat != null:
 		combat.order_changed.emit(combat.order)
@@ -533,114 +524,27 @@ func _on_movement_changed(_remaining: int, _maximum: int) -> void:
 	_refresh_reachable()
 
 
-## The active unit's remaining range, in green.
+## Recolour every tile that changed state since the last refresh.
 func _refresh_reachable() -> void:
-	if combat == null:
-		_reachable = {}
-		_repaint()
+	if _grid == null or combat == null:
 		return
 
 	var next: Dictionary = {}
 	var actor = get_controlled_unit()
-	if actor != null and combat.movement_left > 0:
-		next = _range_for(actor, combat.movement_left)
-	_reachable = next
-	_repaint()
-
-
-## What the hovered unit could reach on a full turn, in amber.
-func _refresh_preview() -> void:
-	var next: Dictionary = {}
-	var unit = _hover_unit
-
-	var valid: bool = unit != null and is_instance_valid(unit) and _hexes.has(unit)
-	if valid and unit.has_method("is_alive") and not unit.is_alive():
-		valid = false
-	if valid and combat != null and unit == combat.active:
-		valid = false          # already shown in green
-
-	if valid:
-		next = _range_for(unit, _movement_for(unit))
-
-	_preview = next
-	_repaint()
-
-
-## Reachable set from a unit's hex, ignoring its own body as an obstacle.
-func _range_for(unit, budget: int) -> Dictionary:
-	if not _hexes.has(unit) or budget <= 0:
-		return {}
-	var origin: Vector2i = _hexes[unit]
-	_hexes.erase(unit)
-	var result: Dictionary = reachable_hexes(origin, budget)
-	_hexes[unit] = origin
-	return result
-
-
-## Build the target colour for every tinted tile, then push only the changes.
-func _repaint() -> void:
-	if _grid == null:
-		return
-
-	var desired: Dictionary = {}
-	for h in _reachable.keys():
-		desired[h] = _tile_color(h.x, h.y) * REACHABLE_TINT
-	for h in _preview.keys():
-		desired[h] = _tile_color(h.x, h.y) * PREVIEW_TINT
+	if actor != null and combat.movement_left > 0 and _hexes.has(actor):
+		var origin: Vector2i = _hexes[actor]
+		_hexes.erase(actor)
+		next = reachable_hexes(origin, combat.movement_left)
+		_hexes[actor] = origin
 
 	var mm: MultiMesh = _grid.multimesh
-
-	for h in _painted.keys():
-		if not desired.has(h):
+	for h in _reachable.keys():
+		if not next.has(h):
 			mm.set_instance_color(h.y * columns + h.x, _tile_color(h.x, h.y))
-
-	for h in desired.keys():
-		if _painted.get(h) != desired[h]:
-			mm.set_instance_color(h.y * columns + h.x, desired[h])
-
-	_painted = desired
-
-# ---------------------------------------------------------------- hovering
-
-func set_portrait_hover(unit) -> void:
-	_portrait_hover = unit
-	_resolve_hover()
-
-
-func _resolve_hover() -> void:
-	# a portrait beats whatever the cursor is over in the 3D view
-	var next = _portrait_hover if _portrait_hover != null else _world_hover
-	if next == _hover_unit:
-		return
-	_hover_unit = next
-	_refresh_preview()
-
-
-func _process(_delta: float) -> void:
-	if combat == null:
-		return
-	var found = _unit_under_mouse()
-	if found != _world_hover:
-		print("hover: ", found)
-		_world_hover = found
-		_resolve_hover()
-
-
-func _unit_under_mouse():
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return null
-	var mouse: Vector2 = get_viewport().get_mouse_position()
-	var from: Vector3 = cam.project_ray_origin(mouse)
-	var to: Vector3 = from + cam.project_ray_normal(mouse) * 1000.0
-
-	var query := PhysicsRayQueryParameters3D.create(from, to, 2)   # layer 2 = units
-	query.collide_with_areas = false
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-
-	var collider = hit.get("collider")
-	return collider if collider != null and _hexes.has(collider) else null
-
+	for h in next.keys():
+		if not _reachable.has(h):
+			mm.set_instance_color(h.y * columns + h.x, _tile_color(h.x, h.y) * REACHABLE_TINT)
+	_reachable = next
 
 func _movement_for(unit: Node) -> int:
 	if unit != null and "stats" in unit and unit.stats != null:

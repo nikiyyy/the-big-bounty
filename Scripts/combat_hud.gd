@@ -1,5 +1,8 @@
 extends Control
 
+signal unit_hovered(unit)
+signal unit_unhovered
+
 const SWATCH_SIZE := Vector2(44, 44)
 const COLOR_PLAYER := Color(0.92, 0.92, 0.90)
 const COLOR_ALLY := Color(0.25, 0.75, 0.35)
@@ -112,6 +115,9 @@ func _make_entry(unit) -> Control:
 	if unit.has_signal("health_changed"):
 		unit.health_changed.connect(func(_c, _m): _update_health(unit))
 
+	frame.mouse_entered.connect(func(): unit_hovered.emit(unit))
+	frame.mouse_exited.connect(func(): unit_unhovered.emit())
+	
 	return frame
 
 

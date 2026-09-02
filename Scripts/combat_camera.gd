@@ -77,7 +77,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			is_rotating = event.pressed
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if event.pressed else Input.MOUSE_MODE_VISIBLE
+			Input.mouse_mode = Input.MOUSE_MODE_CONFINED if event.pressed else Input.MOUSE_MODE_VISIBLE
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			desired_distance = clampf(desired_distance - zoom_step, min_distance, max_distance)
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:

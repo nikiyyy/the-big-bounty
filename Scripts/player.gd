@@ -63,6 +63,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		_handle_inspect(event.pressed)
+		return
+
 	if dialogue_open:
 		return
 	if not (event is InputEventMouseButton and event.pressed):
@@ -246,3 +250,30 @@ func heal(amount: int) -> void:
 
 func is_alive() -> bool:
 	return current_health > 0
+	
+func _handle_inspect(pressed: bool) -> void:
+	print("inspect: pressed=", pressed, " in_battle=", Game.in_battle())
+	if not Game.in_battle():
+		return
+	var inspector = get_tree().get_first_node_in_group("unit_inspector")
+	print("  inspector=", inspector)
+	if inspector == null:
+		return
+	if not pressed:
+		inspector.hide_card()
+		return
+
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var mouse: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = cam.project_ray_origin(mouse)
+	var to: Vector3 = from + cam.project_ray_normal(mouse) * 1000.0
+	var query := PhysicsRayQueryParameters3D.create(from, to, 2)   # units only
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+
+	var collider = hit.get("collider")
+	print("  ray hit: ", collider)
+	if collider != null and (collider.has_method("get_faction") or collider == self):
+		inspector.show_for(collider)
+	

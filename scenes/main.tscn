@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c3rceuft6iyeu" path="res://scenes/character_sheet.tscn" id="4_jyhfs"]
 [ext_resource type="Script" uid="uid://phc68ycbphse" path="res://Scripts/character_sheet.gd" id="5_tbgi4"]
 [ext_resource type="PackedScene" uid="uid://do70xo6gytsji" path="res://scenes/dialogue_ui.tscn" id="5_tefeu"]
+[ext_resource type="Script" uid="uid://c8tmiwdf4237h" path="res://Scripts/unit_inspector.gd" id="6_tefeu"]
 
 [node name="Main" type="Node3D" unique_id=1098384311]
 script = ExtResource("1_tefeu")
@@ -23,3 +24,6 @@ battle_scene_path = "uid://dipo8w4f8velb"
 
 [node name="CharacterSheet" parent="." unique_id=8519567 instance=ExtResource("4_jyhfs")]
 script = ExtResource("5_tbgi4")
+
+[node name="UnitInspector" type="CanvasLayer" parent="." unique_id=108313674]
+script = ExtResource("6_tefeu")

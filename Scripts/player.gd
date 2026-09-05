@@ -97,13 +97,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if deploying:
 		if collider == self:
-			_deploy_selection = null
+			_set_deploy_selection(null)
 			return
 		if collider != null and collider.has_method("is_ally") and collider.is_ally():
-			_deploy_selection = collider
+			_set_deploy_selection(collider)
 			return
 		if collider != null and collider.has_method("get_faction"):
-			return                  # clicked an enemy; ignore
+			return
 		_request_path(actor, hit["position"])
 		return
 
@@ -297,3 +297,8 @@ func _handle_inspect(pressed: bool) -> void:
 	if collider != null and (collider.has_method("get_faction") or collider == self):
 		inspector.show_for(collider)
 	
+func _set_deploy_selection(unit) -> void:
+	_deploy_selection = unit
+	var world := Game.current_world
+	if world != null and world.has_method("set_deploy_selection"):
+		world.set_deploy_selection(unit if unit != null else self)

@@ -277,7 +277,7 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 			_units.append(ally)
 
 	var members: Array = enemy_group.get("members", [])
-	var enemy_slots: Array = _deploy_slots(members.size(), true)
+	var enemy_slots: Array = _random_deploy_slots(members.size(), true)
 	for i in members.size():
 		if i >= enemy_slots.size():
 			break
@@ -304,7 +304,8 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 func _begin_deployment() -> void:
 	_deploying = true
 	_highlight_deploy_zone()
-
+	SelectionRing.attach(Game.player)
+	
 	var hud_packed: PackedScene = load(HUD_SCENE_PATH)
 	if hud_packed:
 		_hud = hud_packed.instantiate()
@@ -317,6 +318,7 @@ func _finish_deployment() -> void:
 	if not _deploying:
 		return
 	_deploying = false
+	set_deploy_selection(null)
 	_deploy_tiles.clear()
 	_repaint()
 
@@ -906,3 +908,26 @@ func _deploy_move(unit, to: Vector3):
 
 func is_deploying() -> bool:
 	return _deploying
+	
+func set_deploy_selection(unit) -> void:
+	for u in _units:
+		if is_instance_valid(u):
+			SelectionRing.clear(u)
+	if unit != null and is_instance_valid(unit):
+		SelectionRing.attach(unit)
+
+## Every free hex in a deploy band, shuffled.
+func _random_deploy_slots(count: int, enemy_side: bool) -> Array:
+	var band: Array = []
+	for i in deploy_rows:
+		band.append(columns - 1 - i if enemy_side else i)
+
+	var free: Array = []
+	for c in band:
+		for row in rows:
+			var h := Vector2i(c, row)
+			if not is_occupied(h):
+				free.append(h)
+
+	free.shuffle()
+	return free.slice(0, mini(count, free.size()))

@@ -78,6 +78,8 @@ func total_damage_bonus() -> int:
 	
 ## Equip into an explicit slot, rejecting items that don't fit it.
 func equip_to(item: Item, slot: int) -> bool:
+	if not can_equip(item, slot):
+		return false
 	if item == null or item.slot != slot:
 		return false
 	unequip(slot)
@@ -102,15 +104,31 @@ func swap_items(a: int, b: int) -> void:
 
 ## Take an item out of another inventory's backpack and wear it here.
 func equip_from(source: Inventory, item: Item, slot: int) -> bool:
+	if not can_equip(item, slot):
+		return false
 	if item == null or source == null or item.slot != slot:
 		return false
 	unequip_to(source, slot)
 	source.items.erase(item)
 	equipped[slot] = item
+	if slot == Item.Slot.MAIN_HAND and item.hands == Item.Hands.TWO_HANDED:
+		unequip_to(source, Item.Slot.OFF_HAND)
 	inventory_changed.emit()
 	source.inventory_changed.emit()
 	return true
 
+## A two-handed weapon in the main hand blocks the off hand entirely.
+func off_hand_blocked() -> bool:
+	var main: Item = equipped.get(Item.Slot.MAIN_HAND)
+	return main != null and main.hands == Item.Hands.TWO_HANDED
+
+
+func can_equip(item: Item, slot: int) -> bool:
+	if item == null or item.slot != slot:
+		return false
+	if slot == Item.Slot.OFF_HAND and off_hand_blocked():
+		return false
+	return true
 
 ## Remove what's worn in a slot and drop it into another inventory's backpack.
 func unequip_to(target: Inventory, slot: int) -> bool:

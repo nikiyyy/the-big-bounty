@@ -5,6 +5,7 @@ const REACHABLE_TINT := Color(0.62, 0.72, 0.55)
 const COLOR_OBSTACLE := Color(0.04, 0.04, 0.05)
 const COLOR_ROUGH := Color(0.18, 0.32, 0.58)
 const PREVIEW_TINT := Color(0.95, 0.82, 0.45)
+const DEPLOY_TINT := Color(0.55, 0.9, 0.65)
 
 @export var columns: int = 30
 @export var rows: int = 40
@@ -28,7 +29,10 @@ const PREVIEW_TINT := Color(0.95, 0.82, 0.45)
 		flat_top = value
 		if is_node_ready():
 			_rebuild()
+signal deployment_ready
 
+var _deploying: bool = false
+var _pending: Dictionary = {}      # ally_data / player -> hex, before combat
 var _grid: MultiMeshInstance3D
 var _ground: StaticBody3D
 var combat: Combat = null
@@ -47,6 +51,7 @@ var _painted: Dictionary = {}          # hex -> Color currently on the mesh
 var _hover_unit = null
 var _portrait_hover = null
 var _world_hover = null
+var _deploy_tiles: Dictionary = {}
 
 func _ready() -> void:
 	_rebuild()
@@ -262,7 +267,6 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 	if player.has_signal("died"):
 		player.died.connect(_on_unit_died.bind(player))
 
-	# allies fill the near deploy band, skipping the hex the player is on
 	var ally_slots: Array = _deploy_slots(ally_data.size(), false)
 	for i in ally_data.size():
 		if i >= ally_slots.size():
@@ -282,22 +286,6 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 			_enemies.append(foe)
 			_units.append(foe)
 
-	combat = Combat.new()
-	combat.name = "Combat"
-	add_child(combat)
-	combat.budget_for = _movement_for
-	combat.is_player_side = _is_player_side
-	combat.ai_phase = _run_ai_turn
-	combat.setup(_units)
-
-	var hud_packed: PackedScene = load(HUD_SCENE_PATH)
-	if hud_packed:
-		_hud = hud_packed.instantiate()
-		add_child(_hud)
-		_hud.bind(combat)
-		_hud.unit_hovered.connect(set_portrait_hover)
-		_hud.unit_unhovered.connect(func(): set_portrait_hover(null))
-
 	var cam_packed: PackedScene = load(COMBAT_CAMERA_PATH)
 	if cam_packed:
 		_camera = cam_packed.instantiate()
@@ -308,6 +296,41 @@ func setup_battle(player: Node, enemy_group: Dictionary, ally_data: Array = []) 
 			Vector2(global_position.x + s.x * 0.5, global_position.z + s.y * 0.5)
 		)
 		_camera.focus_on(player.global_position)
+
+	_begin_deployment()
+
+
+## Free repositioning inside the friendly band, before initiative is rolled.
+func _begin_deployment() -> void:
+	_deploying = true
+	_highlight_deploy_zone()
+
+	var hud_packed: PackedScene = load(HUD_SCENE_PATH)
+	if hud_packed:
+		_hud = hud_packed.instantiate()
+		add_child(_hud)
+		_hud.show_deployment()
+		_hud.deployment_confirmed.connect(_finish_deployment)
+
+
+func _finish_deployment() -> void:
+	if not _deploying:
+		return
+	_deploying = false
+	_deploy_tiles.clear()
+	_repaint()
+
+	combat = Combat.new()
+	combat.name = "Combat"
+	add_child(combat)
+	combat.budget_for = _movement_for
+	combat.is_player_side = _is_player_side
+	combat.ai_phase = _run_ai_turn
+	combat.setup(_units)
+
+	_hud.bind(combat)
+	_hud.unit_hovered.connect(set_portrait_hover)
+	_hud.unit_unhovered.connect(func(): set_portrait_hover(null))
 
 	combat.movement_changed.connect(_on_movement_changed)
 	combat.turn_changed.connect(func(_u, _r, _p): _refresh_preview())
@@ -374,6 +397,8 @@ func _is_player_side(unit) -> bool:
 
 ## Whoever the player can command right now, or null.
 func get_controlled_unit():
+	if _deploying:
+		return null          # clicks route through _active_actor's fallback
 	if combat == null:
 		return null
 	return combat.active if combat.player_controlled() else null
@@ -383,8 +408,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_ESCAPE:
 			Game.end_battle()
 
+func _highlight_deploy_zone() -> void:
+	_deploy_tiles.clear()
+	for row in rows:
+		for col in deploy_rows:
+			var h := Vector2i(col, row)
+			if not _obstacles.has(h):
+				_deploy_tiles[h] = true
+	_repaint()
+
 ## Returns an Array of world positions to walk through, or null if refused.
 func request_move(unit, to: Vector3):
+	if _deploying:
+		return _deploy_move(unit, to)
 	if combat == null:
 		return [snap_to_hex(to)]
 	if unit != combat.active or not combat.player_controlled():
@@ -432,12 +468,13 @@ func request_attack(attacker, target) -> bool:
 
 	var a: Vector2i = _hexes.get(attacker, world_to_hex(attacker.global_position))
 	var b: Vector2i = _hexes.get(target, world_to_hex(target.global_position))
-	if hex_distance(a, b) > _reach_of(attacker):
-		print("Too far to attack.")
+	var distance: int = hex_distance(a, b)
+	if distance > _max_range_of(attacker):
+		print("Out of range.")
 		return false
 
 	combat.spend_action()
-	_strike(attacker, target)
+	_strike(attacker, target, distance)
 	return true
 
 
@@ -449,12 +486,13 @@ func _ai_attack(attacker, target) -> bool:
 		return false
 	var a: Vector2i = _hexes.get(attacker, world_to_hex(attacker.global_position))
 	var b: Vector2i = _hexes.get(target, world_to_hex(target.global_position))
-	if hex_distance(a, b) > _reach_of(attacker):
+	var distance: int = hex_distance(a, b)
+	if distance > _max_range_of(attacker):
 		return false
-	_strike(attacker, target)
+	_strike(attacker, target, distance)
 	return true
 
-func _strike(attacker, target) -> void:
+func _strike(attacker, target, distance: int) -> void:
 	var strength: int = 1
 	if "stats" in attacker and attacker.stats != null:
 		strength = attacker.stats.strength
@@ -463,11 +501,17 @@ func _strike(attacker, target) -> void:
 	var roll: int = weapon.roll_damage() if weapon != null else 0
 	var total: int = strength + roll
 
+	# past effective range, the shot lands weakly
+	var long_shot: bool = weapon != null and weapon.is_long_shot(distance)
+	if long_shot:
+		total = maxi(1, int(total / 2.0))
+
 	_face_unit(attacker, target)
-	print("%s hits %s for %d (%d str + %d roll)" % [
-		_name_of(attacker), _name_of(target), total, strength, roll
+	print("%s hits %s for %d at %d hexes%s" % [
+		_name_of(attacker), _name_of(target), total, distance,
+		" (long shot)" if long_shot else ""
 	])
-	DamageNumber.spawn(target, total)
+	DamageNumber.spawn(target, total, "blocked" if long_shot else "damage")
 	target.take_damage(total)
 
 
@@ -478,10 +522,10 @@ func _weapon_of(unit) -> Item:
 	return item if item != null and item.is_weapon() else null
 
 
-## How far this unit can strike — its weapon's reach, or 1 bare-handed.
-func _reach_of(unit) -> int:
+## Furthest hex this unit can strike at all.
+func _max_range_of(unit) -> int:
 	var weapon: Item = _weapon_of(unit)
-	return weapon.reach if weapon != null else 1
+	return weapon.max_range() if weapon != null else 1
 
 func _face_unit(unit, target) -> void:
 	var flat := Vector3(target.global_position.x, unit.global_position.y, target.global_position.z)
@@ -583,6 +627,8 @@ func _repaint() -> void:
 		return
 
 	var desired: Dictionary = {}
+	for h in _deploy_tiles.keys():
+		desired[h] = _tile_color(h.x, h.y) * DEPLOY_TINT
 	for h in _reachable.keys():
 		desired[h] = _tile_color(h.x, h.y) * REACHABLE_TINT
 	for h in _preview.keys():
@@ -845,3 +891,18 @@ func path_cost(path: Array) -> int:
 	for h in path:
 		total += move_cost(h)
 	return total
+	
+## No cost, no pathing — just teleport within the band.
+func _deploy_move(unit, to: Vector3):
+	if not _is_player_side(unit):
+		return null
+	var to_hex: Vector2i = world_to_hex(to)
+	if not _deploy_tiles.has(to_hex) or is_occupied(to_hex):
+		return null
+
+	_hexes[unit] = to_hex
+	unit.teleport_to(hex_to_world(to_hex.x, to_hex.y))
+	return null          # teleported already, no path to walk
+
+func is_deploying() -> bool:
+	return _deploying

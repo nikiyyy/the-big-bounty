@@ -22,7 +22,7 @@ var interaction_target = null
 var dialogue_open: bool = false
 var current_health: int = 0
 var _waypoints: Array = []
-
+var _deploy_selection = null
 
 func _ready() -> void:
 	stats = stats.duplicate() if stats != null else Stats.new()
@@ -66,7 +66,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		_handle_inspect(event.pressed)
 		return
-
 	if dialogue_open:
 		return
 	if not (event is InputEventMouseButton and event.pressed):
@@ -77,10 +76,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
+
+	var world := Game.current_world
+	var deploying: bool = world != null and world.has_method("is_deploying") and world.is_deploying()
+
 	var from: Vector3 = cam.project_ray_origin(event.position)
 	var to: Vector3 = from + cam.project_ray_normal(event.position) * 1000.0
 	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.exclude = [self]
+	if not deploying:
+		query.exclude = [self]      # during deployment we need to be clickable
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	if not hit.has("position"):
 		return
@@ -90,8 +94,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var collider = hit.get("collider")
+
+	if deploying:
+		if collider == self:
+			_deploy_selection = null
+			return
+		if collider != null and collider.has_method("is_ally") and collider.is_ally():
+			_deploy_selection = collider
+			return
+		if collider != null and collider.has_method("get_faction"):
+			return                  # clicked an enemy; ignore
+		_request_path(actor, hit["position"])
+		return
+
 	if collider != null and collider.has_method("get_faction"):
-		var world := Game.current_world
 		if world != null and world.has_method("request_attack"):
 			world.request_attack(actor, collider)
 		elif actor == self:
@@ -106,11 +122,15 @@ func _unhandled_input(event: InputEvent) -> void:
 ## In battle, clicks command whoever's turn it is. Outside battle, us.
 func _active_actor():
 	var world := Game.current_world
+	if world != null and world.has_method("is_deploying") and world.is_deploying():
+		return _selected_deploy_unit()
 	if world != null and world.has_method("get_controlled_unit"):
 		return world.get_controlled_unit()
 	return self
 
-
+func _selected_deploy_unit():
+	return _deploy_selection if _deploy_selection != null and is_instance_valid(_deploy_selection) else self
+	
 func _request_path(actor, point: Vector3):
 	var world := Game.current_world
 	if world != null and world.has_method("request_move"):

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Item" format=3 uid="uid://diybmdx7e8mc0"]
+
+[ext_resource type="Script" uid="uid://30l2ylr7plcx" path="res://Scripts/item.gd" id="1_rna6c"]
+
+[resource]
+script = ExtResource("1_rna6c")
+display_name = "Short bow"
+kind = 0
+slot = 0
+value = 40
+hands = 1
+damage_min = 1
+damage_max = 3
+reach = 6
+attack = 1
+metadata/_custom_type_script = "uid://30l2ylr7plcx"

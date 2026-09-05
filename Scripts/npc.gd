@@ -234,3 +234,9 @@ func heal(amount: int) -> void:
 	
 func is_alive() -> bool:
 	return current_health > 0
+	
+func teleport_to(where: Vector3) -> void:
+	global_position = where
+	_walk_queue.clear()
+	_walk_target = null
+	velocity = Vector3.ZERO

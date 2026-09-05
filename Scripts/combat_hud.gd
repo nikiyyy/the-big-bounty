@@ -2,6 +2,7 @@ extends Control
 
 signal unit_hovered(unit)
 signal unit_unhovered
+signal deployment_confirmed
 
 const SWATCH_SIZE := Vector2(44, 44)
 const COLOR_PLAYER := Color(0.92, 0.92, 0.90)
@@ -19,7 +20,7 @@ var combat: Combat = null
 var _order_bar: PanelContainer
 var _order_row: HBoxContainer
 var _entries: Dictionary = {}      # unit -> { frame, health_label }
-
+var _deploy_button: Button
 
 func _ready() -> void:
 	hide()
@@ -159,3 +160,18 @@ func _on_end_turn_pressed() -> void:
 
 func _on_flee_pressed() -> void:
 	Game.end_battle.call_deferred()
+	
+func show_deployment() -> void:
+	_deploy_button = Button.new()
+	_deploy_button.text = "Start battle"
+	_deploy_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_deploy_button.offset_left = -70
+	_deploy_button.offset_right = 70
+	_deploy_button.offset_top = -70
+	_deploy_button.offset_bottom = -30
+	_deploy_button.pressed.connect(func():
+		deployment_confirmed.emit()
+		_deploy_button.queue_free()
+	)
+	add_child(_deploy_button)
+	show()

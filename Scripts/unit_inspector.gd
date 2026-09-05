@@ -25,6 +25,9 @@ func show_for(unit) -> void:
 	_unit = unit
 	_populate()
 	_panel.show()
+	_panel.reset_size()
+	await get_tree().process_frame
+	_panel.reset_size()
 	_follow_mouse()
 
 
@@ -57,6 +60,8 @@ func _follow_mouse() -> void:
 func _build() -> void:
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_panel.custom_minimum_size = Vector2.ZERO
 
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(0.07, 0.07, 0.09, 0.95)
@@ -112,6 +117,8 @@ func _populate() -> void:
 	if stats == null:
 		return
 	for stat_name in Stats.NAMES:
+		if stat_name == "health":
+			continue
 		_add_pair(Stats.LABELS[stat_name], str(stats.get(stat_name)))
 
 

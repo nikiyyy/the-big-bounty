@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Item" format=3 uid="uid://clwk7ohjnr685"]
+
+[ext_resource type="Script" uid="uid://30l2ylr7plcx" path="res://Scripts/item.gd" id="1_7jao4"]
+
+[resource]
+script = ExtResource("1_7jao4")
+display_name = "Greatsword"
+kind = 0
+slot = 0
+value = 60
+hands = 1
+damage_min = 3
+damage_max = 6
+metadata/_custom_type_script = "uid://30l2ylr7plcx"

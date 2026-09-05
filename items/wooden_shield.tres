@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Item" format=3 uid="uid://cm4t3k0ax2rsi"]
+
+[ext_resource type="Script" uid="uid://30l2ylr7plcx" path="res://Scripts/item.gd" id="1_152om"]
+
+[resource]
+script = ExtResource("1_152om")
+display_name = "wooden shield"
+description = null
+kind = 1
+slot = 1
+rarity = null
+value = 25
+long_range_multiplier = null
+hands = null
+damage_min = null
+damage_max = null
+reach = null
+armor_bonus = 10
+metadata/_custom_type_script = "uid://30l2ylr7plcx"

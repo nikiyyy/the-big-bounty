@@ -5,6 +5,7 @@ enum Slot { MAIN_HAND, OFF_HAND, RANGED, NONE }
 enum Kind { WEAPON, ARMOR, CONSUMABLE, MISC }
 enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY }
 enum Hands { ONE_HANDED, TWO_HANDED }
+enum Attack { MELEE, RANGED }
 
 const RARITY_COLORS := {
 	Rarity.COMMON: Color(0.75, 0.75, 0.72),
@@ -26,6 +27,7 @@ const RARITY_COLORS := {
 @export var damage_min: int = 0
 @export var damage_max: int = 0
 @export var reach: int = 1          ## hexes; 1 = must be adjacent
+@export var attack: Attack = Attack.MELEE
 
 @export_group("Armor")
 @export var armor_bonus: int = 0
@@ -49,8 +51,24 @@ func rarity_color() -> Color:
 func tooltip() -> String:
 	var lines: Array = [display_name]
 	if is_weapon():
-		lines.append("%d–%d damage, reach %d" % [damage_min, damage_max, reach])
+		var style: String = "ranged" if is_ranged() else "melee"
+		lines.append("%d–%d damage, %s, reach %d" % [damage_min, damage_max, style, reach])
 	if armor_bonus > 0:
 		lines.append("+%d armor" % armor_bonus)
 	lines.append("%d gold" % value)
 	return "\n".join(lines)
+
+
+## The furthest this weapon can reach at all. Melee weapons can't exceed reach.
+func max_range() -> int:
+	if not is_ranged():
+		return reach
+	return 1 << 30
+
+
+## True when the target is past effective range but still inside max range.
+func is_long_shot(distance: int) -> bool:
+	return is_ranged() and distance > reach
+	
+func is_ranged() -> bool:
+	return kind == Kind.WEAPON and attack == Attack.RANGED

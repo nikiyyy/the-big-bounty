@@ -349,7 +349,8 @@ func _can_drop_here(_at: Vector2, data: Variant, kind: String, key) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("item"):
 		return false
 	if kind == "equipment":
-		return data["item"].slot == key      # only items that fit this slot
+		var gear := _gear()
+		return gear != null and gear.can_equip(data["item"], key)
 	return true
 
 

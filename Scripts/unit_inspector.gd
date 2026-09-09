@@ -97,9 +97,12 @@ func _populate() -> void:
 	var hp: int = _unit.current_health if "current_health" in _unit else 0
 	var hp_max: int = _unit.max_health() if _unit.has_method("max_health") else 0
 	var armor: int = _unit.armor() if _unit.has_method("armor") else 0
+	var mana: int = _unit.current_mana if "current_mana" in _unit else 0
+	var mana_max: int = _unit.max_mana() if _unit.has_method("max_mana") else 0
+	var klass: String = _unit.class_name_of() if _unit.has_method("class_name_of") else ""
 
-	_title.text = "%s   lvl %d" % [name, level]
-
+	_title.text = "%s   %s   lvl %d" % [name, klass, level]
+	_add_pair("Mana", "%d / %d" % [mana, mana_max])
 	_add_pair("Health", "%d / %d" % [hp, hp_max])
 	_add_pair("Armor", str(armor))
 

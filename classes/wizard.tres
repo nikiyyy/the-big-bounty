@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="CharacterClass" format=3 uid="uid://cttf6b6axue"]
+
+[ext_resource type="Script" uid="uid://2a36nxb4v4tx" path="res://Scripts/character_class.gd" id="1_hp33b"]
+
+[resource]
+script = ExtResource("1_hp33b")
+display_name = "wizard"
+icon_color = Color(0.23299024, 0.75703394, 0.99999994, 1)
+metadata/_custom_type_script = "uid://2a36nxb4v4tx"

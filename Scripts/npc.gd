@@ -30,6 +30,7 @@ const FACTION_COLORS := {
 @export var base_armor: int = 0
 @export var party: Array[UnitTemplate] = []
 @export var inventory: Inventory
+@export var character_class: CharacterClass
 
 var follow_target: Node3D = null
 var _walking: bool = false
@@ -43,6 +44,7 @@ func _ready() -> void:
 	if not Engine.is_editor_hint():
 		stats = stats.duplicate() if stats != null else Stats.new()
 		current_health = max_health()
+		current_mana = max_mana()
 	_apply_color()
 	
 func _apply_color() -> void:
@@ -129,6 +131,7 @@ func to_battle_group() -> Dictionary:
 			"ai": ai,
 			"level": level,
 			"base_armor": base_armor,
+			"character_class": character_class,
 		})
 	else:
 		for template in party:
@@ -142,9 +145,11 @@ func to_battle_group() -> Dictionary:
 					"ai": template.ai,
 					"level": template.level,
 					"base_armor": template.base_armor,
+					"character_class": template.character_class,
 				})
 
 	return {"name": display_name, "members": members}
+
 
 func save_state() -> Dictionary:
 	return {
@@ -155,6 +160,8 @@ func save_state() -> Dictionary:
 		"inventory": inventory,
 		"level": level,
 		"base_armor": base_armor,
+		"character_class": character_class,
+		"mana": current_mana,
 	}
 
 func load_state(data: Dictionary) -> void:
@@ -164,8 +171,12 @@ func load_state(data: Dictionary) -> void:
 		stats = data["stats"]
 	if data.get("inventory") != null:
 		inventory = data["inventory"]
+	if data.get("character_class") != null:
+		character_class = data["character_class"]
 	level = data.get("level", level)
 	base_armor = data.get("base_armor", base_armor)
+	current_mana = data.get("mana", max_mana())
+	mana_changed.emit(current_mana, max_mana())
 	if data.get("following", false) and Game.player != null:
 		start_following(Game.player)
 
@@ -199,6 +210,7 @@ func to_ally_data() -> Dictionary:
 		"level": level,
 		"base_armor": base_armor,
 		"inventory": inventory,
+		"character_class": character_class,
 	}
 
 #health stuff
@@ -240,3 +252,28 @@ func teleport_to(where: Vector3) -> void:
 	_walk_queue.clear()
 	_walk_target = null
 	velocity = Vector3.ZERO
+
+signal mana_changed(current: int, maximum: int)
+
+var current_mana: int = 0
+
+
+func max_mana() -> int:
+	return stats.mana_pool if stats != null else 0
+
+
+func spend_mana(amount: int) -> bool:
+	if amount > current_mana:
+		return false
+	current_mana -= amount
+	mana_changed.emit(current_mana, max_mana())
+	return true
+
+
+func restore_mana(amount: int) -> void:
+	current_mana = mini(max_mana(), current_mana + amount)
+	mana_changed.emit(current_mana, max_mana())
+
+
+func class_name_of() -> String:
+	return character_class.display_name if character_class != null else "—"

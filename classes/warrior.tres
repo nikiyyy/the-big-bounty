@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="CharacterClass" format=3 uid="uid://dnxbsubqpomky"]
+
+[ext_resource type="Script" uid="uid://2a36nxb4v4tx" path="res://Scripts/character_class.gd" id="1_hi70d"]
+
+[resource]
+script = ExtResource("1_hi70d")
+display_name = "warrior"
+icon_color = Color(0.8, 0, 0, 1)
+metadata/_custom_type_script = "uid://2a36nxb4v4tx"

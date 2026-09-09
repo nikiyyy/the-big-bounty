@@ -249,14 +249,19 @@ func _refresh() -> void:
 	var stats: Stats = unit.stats
 	if stats == null:
 		return
-
+		
+	var klass: String = unit.class_name_of() if unit.has_method("class_name_of") else "—"
+	var mana: int = unit.current_mana if "current_mana" in unit else 0
+	var mana_max: int = unit.max_mana() if unit.has_method("max_mana") else 0
 	var who: String = unit.display_name if "display_name" in unit else "Unit"
 	var level: int = unit.level if "level" in unit else 1
 	var armor: int = unit.armor() if unit.has_method("armor") else 0
 	var gold: int = player.gold if "gold" in player else 0
 	var xp: int = player.xp if "xp" in player else 0
 
-	_header.text = "%s   lvl %d   armor %d   %d gold   %d xp" % [who, level, armor, gold, xp]
+	_header.text = "%s   %s   lvl %d   armor %d   mana %d/%d   %d gold   %d xp" % [
+		who, klass, level, armor, mana, mana_max, gold, xp
+	]
 	_points_label.text = "Points to spend: %d" % stats.available_points
 
 	for stat_name in Stats.NAMES:

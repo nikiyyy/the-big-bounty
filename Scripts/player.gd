@@ -16,6 +16,7 @@ signal armor_changed(value: int)
 @export var level: int = 1
 @export var base_armor: int = 0
 @export var inventory: Inventory
+@export var character_class: CharacterClass
 
 var target_position: Vector3
 var interaction_target = null
@@ -29,6 +30,7 @@ func _ready() -> void:
 	stats.changed_stat.connect(_on_stat_raised)
 	inventory = inventory.duplicate(true) if inventory != null else Inventory.new()
 	current_health = max_health()
+	current_mana = max_mana()
 	target_position = global_position
 
 
@@ -211,6 +213,8 @@ func save_state() -> Dictionary:
 		"level": level,
 		"base_armor": base_armor,
 		"inventory": inventory,
+		"character_class": character_class,
+		"mana": current_mana,
 	}
 
 func load_state(data: Dictionary) -> void:
@@ -220,15 +224,20 @@ func load_state(data: Dictionary) -> void:
 			stats.changed_stat.connect(_on_stat_raised)
 	if data.get("inventory") != null:
 		inventory = data["inventory"]
+	if data.get("character_class") != null:
+		character_class = data["character_class"]
 	current_health = data.get("health", max_health())
+	current_mana = data.get("mana", max_mana())
 	gold = data.get("gold", 0)
 	xp = data.get("xp", 0)
 	level = data.get("level", 1)
 	base_armor = data.get("base_armor", 0)
 	health_changed.emit(current_health, max_health())
+	mana_changed.emit(current_mana, max_mana())
 	gold_changed.emit(gold)
 	xp_changed.emit(xp)
 	armor_changed.emit(armor())
+	
 
 ## Total armor: innate plus whatever equipment adds.
 func armor() -> int:
@@ -302,3 +311,29 @@ func _set_deploy_selection(unit) -> void:
 	var world := Game.current_world
 	if world != null and world.has_method("set_deploy_selection"):
 		world.set_deploy_selection(unit if unit != null else self)
+
+#mana
+signal mana_changed(current: int, maximum: int)
+
+var current_mana: int = 0
+
+
+func max_mana() -> int:
+	return stats.mana_pool if stats != null else 0
+
+
+func spend_mana(amount: int) -> bool:
+	if amount > current_mana:
+		return false
+	current_mana -= amount
+	mana_changed.emit(current_mana, max_mana())
+	return true
+
+
+func restore_mana(amount: int) -> void:
+	current_mana = mini(max_mana(), current_mana + amount)
+	mana_changed.emit(current_mana, max_mana())
+
+
+func class_name_of() -> String:
+	return character_class.display_name if character_class != null else "—"

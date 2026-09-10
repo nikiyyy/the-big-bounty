@@ -17,6 +17,7 @@ signal armor_changed(value: int)
 @export var base_armor: int = 0
 @export var inventory: Inventory
 @export var character_class: CharacterClass
+@export var spells: Array[Spell] = []
 
 var target_position: Vector3
 var interaction_target = null
@@ -81,14 +82,19 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var world := Game.current_world
 	var deploying: bool = world != null and world.has_method("is_deploying") and world.is_deploying()
+	var targeting: bool = world != null and world.has_method("is_targeting") and world.is_targeting()
 
 	var from: Vector3 = cam.project_ray_origin(event.position)
 	var to: Vector3 = from + cam.project_ray_normal(event.position) * 1000.0
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	if not deploying:
-		query.exclude = [self]      # during deployment we need to be clickable
+		query.exclude = [self]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	if not hit.has("position"):
+		return
+
+	if targeting:
+		world.confirm_cast(hit["position"])
 		return
 
 	var actor = _active_actor()

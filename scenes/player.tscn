@@ -9,10 +9,13 @@
 [ext_resource type="Resource" uid="uid://cm4t3k0ax2rsi" path="res://items/wooden_shield.tres" id="6_ur7pv"]
 [ext_resource type="Resource" uid="uid://clwk7ohjnr685" path="res://items/greatsword.tres" id="7_y4r1p"]
 [ext_resource type="Resource" uid="uid://dnxbsubqpomky" path="res://classes/warrior.tres" id="9_ur7pv"]
+[ext_resource type="Script" uid="uid://cfb1dx73mhhsh" path="res://Scripts/spell.gd" id="10_y4r1p"]
+[ext_resource type="Resource" uid="uid://bcouf66vdsb7j" path="res://spells/fireball.tres" id="11_d2wvv"]
 
 [sub_resource type="Resource" id="Resource_abqhh"]
 script = ExtResource("2_g2els")
 haste = 9
+mana_pool = 3
 metadata/_custom_type_script = "uid://qlg6oc76b8q2"
 
 [sub_resource type="Resource" id="Resource_5iu60"]
@@ -29,6 +32,7 @@ script = ExtResource("1_3vyb7")
 stats = SubResource("Resource_abqhh")
 inventory = SubResource("Resource_5iu60")
 character_class = ExtResource("9_ur7pv")
+spells = Array[ExtResource("10_y4r1p")]([ExtResource("11_d2wvv")])
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1154471151]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

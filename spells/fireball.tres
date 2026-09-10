@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Spell" format=3 uid="uid://bcouf66vdsb7j"]
+
+[ext_resource type="Script" uid="uid://cfb1dx73mhhsh" path="res://Scripts/spell.gd" id="1_kdtli"]
+
+[resource]
+script = ExtResource("1_kdtli")
+display_name = "Fireball"
+cast_range = 12
+metadata/_custom_type_script = "uid://cfb1dx73mhhsh"

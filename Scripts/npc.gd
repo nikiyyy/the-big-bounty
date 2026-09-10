@@ -31,6 +31,7 @@ const FACTION_COLORS := {
 @export var party: Array[UnitTemplate] = []
 @export var inventory: Inventory
 @export var character_class: CharacterClass
+@export var spells: Array[Spell] = []
 
 var follow_target: Node3D = null
 var _walking: bool = false

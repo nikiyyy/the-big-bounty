@@ -6,6 +6,8 @@ const COLOR_OBSTACLE := Color(0.04, 0.04, 0.05)
 const COLOR_ROUGH := Color(0.18, 0.32, 0.58)
 const PREVIEW_TINT := Color(0.95, 0.82, 0.45)
 const DEPLOY_TINT := Color(0.55, 0.9, 0.65)
+const CAST_RANGE_TINT := Color(0.70, 0.62, 0.95)
+const BLAST_TINT := Color(1.15, 0.45, 0.30)
 
 @export var columns: int = 30
 @export var rows: int = 40
@@ -52,6 +54,10 @@ var _hover_unit = null
 var _portrait_hover = null
 var _world_hover = null
 var _deploy_tiles: Dictionary = {}
+var _targeting: Spell = null
+var _caster = null
+var _cast_tiles: Dictionary = {}
+var _blast_tiles: Dictionary = {}
 
 func _ready() -> void:
 	_rebuild()
@@ -335,7 +341,10 @@ func _finish_deployment() -> void:
 	_hud.unit_unhovered.connect(func(): set_portrait_hover(null))
 
 	combat.movement_changed.connect(_on_movement_changed)
-	combat.turn_changed.connect(func(_u, _r, _p): _refresh_preview())
+	combat.turn_changed.connect(func(_u, _r, _p):
+		cancel_targeting()
+		_refresh_preview()
+	)
 	combat.begin()
 
 
@@ -409,9 +418,16 @@ func get_controlled_unit():
 	return combat.active if combat.player_controlled() else null
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+
+	if event.keycode == KEY_ESCAPE:
+		if _targeting != null:
+			cancel_targeting()
+		else:
 			Game.end_battle()
+	elif event.keycode == KEY_F:
+		_try_begin_targeting(0)
 
 func _highlight_deploy_zone() -> void:
 	_deploy_tiles.clear()
@@ -638,6 +654,10 @@ func _repaint() -> void:
 		desired[h] = _tile_color(h.x, h.y) * REACHABLE_TINT
 	for h in _preview.keys():
 		desired[h] = _tile_color(h.x, h.y) * PREVIEW_TINT
+	for h in _cast_tiles.keys():
+		desired[h] = _tile_color(h.x, h.y) * CAST_RANGE_TINT
+	for h in _blast_tiles.keys():
+		desired[h] = _tile_color(h.x, h.y) * BLAST_TINT
 
 	var mm: MultiMesh = _grid.multimesh
 
@@ -668,11 +688,13 @@ func _resolve_hover() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _targeting != null:
+		_update_blast()
+		return
 	if combat == null:
 		return
 	var found = _unit_under_mouse()
 	if found != _world_hover:
-		print("hover: ", found)
 		_world_hover = found
 		_resolve_hover()
 
@@ -934,3 +956,143 @@ func _random_deploy_slots(count: int, enemy_side: bool) -> Array:
 
 	free.shuffle()
 	return free.slice(0, mini(count, free.size()))
+	
+func is_targeting() -> bool:
+	return _targeting != null
+
+
+## Every spell this unit can cast: its own list plus its class's.
+func _spells_of(unit) -> Array:
+	var out: Array = []
+	if "spells" in unit and unit.spells != null:
+		for s in unit.spells:
+			if s != null:
+				out.append(s)
+	if "character_class" in unit and unit.character_class != null:
+		for s in unit.character_class.spells:
+			if s != null and not out.has(s):
+				out.append(s)
+	return out
+
+
+func _try_begin_targeting(index: int) -> void:
+	if combat == null or _deploying or _battle_over:
+		return
+	var caster = get_controlled_unit()
+	if caster == null:
+		return
+	if not combat.can_act():
+		print("No action left this turn.")
+		return
+
+	var known: Array = _spells_of(caster)
+	if index >= known.size():
+		print("No spell in that slot.")
+		return
+
+	var spell: Spell = known[index]
+	var mana: int = caster.current_mana if "current_mana" in caster else 0
+	if mana < spell.mana_cost:
+		print("Not enough mana for %s (%d needed, %d left)." % [
+			spell.display_name, spell.mana_cost, mana
+		])
+		return
+
+	_targeting = spell
+	_caster = caster
+	_cast_tiles = _hexes_within(_hexes[caster], spell.cast_range)
+	_blast_tiles.clear()
+	_repaint()
+	print("Targeting %s — left click to cast, Escape to cancel." % spell.display_name)
+
+
+func cancel_targeting() -> void:
+	_targeting = null
+	_caster = null
+	_cast_tiles.clear()
+	_blast_tiles.clear()
+	_repaint()
+
+
+## Straight-line hex distance, ignoring obstacles — spells don't walk.
+func _hexes_within(centre: Vector2i, radius: int) -> Dictionary:
+	var out: Dictionary = {}
+	for row in range(maxi(0, centre.y - radius - 1), mini(rows, centre.y + radius + 2)):
+		for col in range(maxi(0, centre.x - radius - 1), mini(columns, centre.x + radius + 2)):
+			var h := Vector2i(col, row)
+			if hex_distance(centre, h) <= radius:
+				out[h] = true
+	return out
+
+
+func _update_blast() -> void:
+	var centre: Vector2i = _hex_under_mouse()
+	var next: Dictionary = {}
+	if centre.x >= 0 and _cast_tiles.has(centre):
+		next = _hexes_within(centre, _targeting.radius)
+
+	if next.size() == _blast_tiles.size() and (next.is_empty() or next.keys()[0] == _blast_tiles.keys()[0]):
+		return                                  # nothing moved, skip the repaint
+	_blast_tiles = next
+	_repaint()
+
+
+func _hex_under_mouse() -> Vector2i:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return Vector2i(-1, -1)
+	var mouse: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = cam.project_ray_origin(mouse)
+	var to: Vector3 = from + cam.project_ray_normal(mouse) * 1000.0
+
+	var query := PhysicsRayQueryParameters3D.create(from, to, 1 | 2)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.has("position"):
+		return Vector2i(-1, -1)
+	return world_to_hex(hit["position"])
+
+
+func confirm_cast(world_pos: Vector3) -> bool:
+	if _targeting == null or _caster == null:
+		return false
+	var centre: Vector2i = world_to_hex(world_pos)
+	if not _cast_tiles.has(centre):
+		print("Out of range.")
+		return false
+	if not combat.can_act():
+		cancel_targeting()
+		return false
+
+	var spell: Spell = _targeting
+	var caster = _caster
+	var area: Dictionary = _hexes_within(centre, spell.radius)
+
+	if caster.has_method("spend_mana") and not caster.spend_mana(spell.mana_cost):
+		cancel_targeting()
+		return false
+	combat.spend_action()
+
+	var power: int = 0
+	if "stats" in caster and caster.stats != null:
+		power = caster.stats.magic_power
+
+	print("%s casts %s at %s" % [_name_of(caster), spell.display_name, centre])
+
+	for unit in _units:
+		if not is_instance_valid(unit):
+			continue
+		if unit.has_method("is_alive") and not unit.is_alive():
+			continue
+		if not _hexes.has(unit) or not area.has(_hexes[unit]):
+			continue
+		if not spell.hits_allies and _is_player_side(unit) == _is_player_side(caster):
+			continue
+
+		var total: int = power + spell.roll_damage()
+		print("  %s takes %d" % [_name_of(unit), total])
+		DamageNumber.spawn(unit, total)
+		unit.take_damage(total)
+
+	cancel_targeting()
+	_refresh_reachable()
+	return true

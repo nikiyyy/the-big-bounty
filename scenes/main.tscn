@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://phc68ycbphse" path="res://Scripts/character_sheet.gd" id="5_tbgi4"]
 [ext_resource type="PackedScene" uid="uid://do70xo6gytsji" path="res://scenes/dialogue_ui.tscn" id="5_tefeu"]
 [ext_resource type="Script" uid="uid://c8tmiwdf4237h" path="res://Scripts/unit_inspector.gd" id="6_tefeu"]
+[ext_resource type="PackedScene" uid="uid://wsafoky2vc1o" path="res://scenes/TradeWindow.tscn" id="7_o6xl0"]
 
 [node name="Main" type="Node3D" unique_id=1098384311]
 script = ExtResource("1_tefeu")
@@ -27,3 +28,5 @@ script = ExtResource("5_tbgi4")
 
 [node name="UnitInspector" type="CanvasLayer" parent="." unique_id=108313674]
 script = ExtResource("6_tefeu")
+
+[node name="TradeWindow" parent="." unique_id=1304546601 instance=ExtResource("7_o6xl0")]

@@ -84,20 +84,28 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.349845, 0.10000038, 5.8358
 faction = 0
 display_name = "Bellona"
 inventory = SubResource("Resource_tn3yd")
-spells = null
+is_merchant = null
+merchant_gold = null
+stock = null
+buy_rate = null
 
 [node name="NPC" parent="NPC" unique_id=1900716751 instance=ExtResource("2_fwfmv")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7534189, 0.10000038, -5.2703304)
 faction = 0
 display_name = "Myra"
 inventory = SubResource("Resource_3evjc")
-spells = null
+is_merchant = null
+merchant_gold = null
+stock = null
+buy_rate = null
 
 [node name="NPC2" parent="." unique_id=1283164643 instance=ExtResource("2_fwfmv")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2593198, 0.09999943, 7.078424)
 display_name = "merchant"
 inventory = SubResource("Resource_wrdim")
-spells = null
+is_merchant = true
+stock = null
+buy_rate = null
 
 [node name="NPC3" parent="." unique_id=677490741 instance=ExtResource("2_fwfmv")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.382188, 0.10000038, 4.5300207)
@@ -107,6 +115,9 @@ stats = SubResource("Resource_m22rl")
 party = Array[ExtResource("4_m22rl")]([SubResource("Resource_v0b4f"), SubResource("Resource_ltyuv"), SubResource("Resource_bgisd")])
 inventory = SubResource("Resource_i3btg")
 character_class = ExtResource("8_r30v4")
-spells = null
+is_merchant = null
+merchant_gold = null
+stock = null
+buy_rate = null
 
 [node name="PlayerSpawn" type="Marker3D" parent="." unique_id=383359081]

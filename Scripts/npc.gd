@@ -18,7 +18,7 @@ const FACTION_COLORS := {
 @export var display_name: String = "NPC"
 @export_multiline var greeting: String = "Hello there, traveller."
 @export_multiline var response: String = "Nice weather we're having."
-
+@export_group("Merchant")
 @export_group("Battle group")
 @export_group("Follow")
 @export var move_speed: float = 5.5
@@ -32,11 +32,16 @@ const FACTION_COLORS := {
 @export var inventory: Inventory
 @export var character_class: CharacterClass
 @export var spells: Array[Spell] = []
+@export var is_merchant: bool = false
+@export var merchant_gold: int = 200
+@export var stock: Array[Item] = []
+@export_range(0.1, 1.0) var buy_rate: float = 0.5   ## fraction of value paid to you
 
 var follow_target: Node3D = null
 var _walking: bool = false
 var _walk_target = null
 var _walk_queue: Array = []
+var _stock_loaded: bool = false
 signal walk_finished
 signal died
 
@@ -163,6 +168,8 @@ func save_state() -> Dictionary:
 		"base_armor": base_armor,
 		"character_class": character_class,
 		"mana": current_mana,
+		"merchant_gold": merchant_gold,
+		"stock_loaded": _stock_loaded,
 	}
 
 func load_state(data: Dictionary) -> void:
@@ -178,6 +185,8 @@ func load_state(data: Dictionary) -> void:
 	base_armor = data.get("base_armor", base_armor)
 	current_mana = data.get("mana", max_mana())
 	mana_changed.emit(current_mana, max_mana())
+	merchant_gold = data.get("merchant_gold", merchant_gold)
+	_stock_loaded = data.get("stock_loaded", false)
 	if data.get("following", false) and Game.player != null:
 		start_following(Game.player)
 
@@ -278,3 +287,24 @@ func restore_mana(amount: int) -> void:
 
 func class_name_of() -> String:
 	return character_class.display_name if character_class != null else "—"
+	
+## Merchant inventory is built from `stock` on first use, then persists.
+func merchant_inventory() -> Inventory:
+	if inventory == null:
+		inventory = Inventory.new()
+	if not _stock_loaded:
+		_stock_loaded = true
+		for item in stock:
+			if item != null:
+				inventory.items.append(item.duplicate())
+	return inventory
+
+
+## What this merchant pays for an item you're selling.
+func buy_price(item: Item) -> int:
+	return maxi(1, int(item.value * buy_rate))
+
+
+## What this merchant charges you for an item.
+func sell_price(item: Item) -> int:
+	return maxi(1, item.value)

@@ -52,9 +52,14 @@ func _refresh(include_greeting: bool) -> void:
 
 	if Game.in_battle():
 		list.append({"label": "Flee the battle", "action": _on_flee})
-
+		
+	if current_npc != null and "is_merchant" in current_npc and current_npc.is_merchant:
+		if not Game.in_battle():
+			list.append({"label": "Trade", "action": _on_trade})
+			
 	list.append({"label": "Exit", "action": _on_exit})
 	_build_options(list)
+
 func _build_options(list: Array) -> void:
 	for child in options.get_children():
 		child.queue_free()
@@ -96,3 +101,10 @@ func _on_exit() -> void:
 	if player:
 		player.dialogue_open = false
 	closed.emit()
+	
+func _on_trade() -> void:
+	var npc = current_npc
+	_on_exit()
+	var window = get_tree().get_first_node_in_group("trade_window")
+	if window != null:
+		window.open(npc, player)

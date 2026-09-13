@@ -104,7 +104,9 @@ func _populate() -> void:
 	_title.text = "%s   %s   lvl %d" % [name, klass, level]
 	_add_pair("Mana", "%d / %d" % [mana, mana_max])
 	_add_pair("Health", "%d / %d" % [hp, hp_max])
-	_add_pair("Armor", str(armor))
+
+	var cut: int = int(round((1.0 - Damage.multiplier(armor)) * 100.0))
+	_add_pair("Armor", "%d  (-%d%%)" % [armor, cut])
 
 	var weapon: Item = null
 	if "inventory" in _unit and _unit.inventory != null:
@@ -115,6 +117,11 @@ func _populate() -> void:
 	if weapon != null and weapon.is_weapon():
 		damage = "%d–%d" % [weapon.damage_min, weapon.damage_max]
 	_add_pair("Damage", damage)
+
+	var reach: String = "1 (melee)"
+	if weapon != null and weapon.is_weapon():
+		reach = "%d (%s)" % [weapon.reach, "ranged" if weapon.is_ranged() else "melee"]
+	_add_pair("Reach", reach)
 
 	var stats: Stats = _unit.stats if "stats" in _unit else null
 	if stats == null:

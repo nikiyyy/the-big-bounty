@@ -520,20 +520,22 @@ func _strike(attacker, target, distance: int) -> void:
 
 	var weapon: Item = _weapon_of(attacker)
 	var roll: int = weapon.roll_damage() if weapon != null else 0
-	var total: int = strength + roll
+	var raw: int = strength + roll
 
-	# past effective range, the shot lands weakly
 	var long_shot: bool = weapon != null and weapon.is_long_shot(distance)
 	if long_shot:
-		total = maxi(1, int(total / 2.0))
+		raw = maxi(1, int(raw / 2.0))
+
+	var armor: int = Damage.armor_of(target)
+	var dealt: int = Damage.apply_armor(raw, armor)
 
 	_face_unit(attacker, target)
-	print("%s hits %s for %d at %d hexes%s" % [
-		_name_of(attacker), _name_of(target), total, distance,
-		" (long shot)" if long_shot else ""
+	print("%s hits %s for %d (raw %d, armor %d)%s" % [
+		_name_of(attacker), _name_of(target), dealt, raw, armor,
+		" [long shot]" if long_shot else ""
 	])
-	DamageNumber.spawn(target, total, "blocked" if long_shot else "damage")
-	target.take_damage(total)
+	DamageNumber.spawn(target, dealt, "blocked" if long_shot else "damage")
+	target.take_damage(dealt)
 
 
 func _weapon_of(unit) -> Item:
@@ -1088,10 +1090,11 @@ func confirm_cast(world_pos: Vector3) -> bool:
 		if not spell.hits_allies and _is_player_side(unit) == _is_player_side(caster):
 			continue
 
-		var total: int = power + spell.roll_damage()
-		print("  %s takes %d" % [_name_of(unit), total])
-		DamageNumber.spawn(unit, total)
-		unit.take_damage(total)
+		var raw: int = power + spell.roll_damage()
+		var dealt: int = Damage.apply_armor(raw, Damage.armor_of(unit))
+		print("  %s takes %d (raw %d)" % [_name_of(unit), dealt, raw])
+		DamageNumber.spawn(unit, dealt)
+		unit.take_damage(dealt)
 
 	cancel_targeting()
 	_refresh_reachable()

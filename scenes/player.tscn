@@ -14,6 +14,7 @@
 
 [sub_resource type="Resource" id="Resource_abqhh"]
 script = ExtResource("2_g2els")
+agility = 100
 haste = 9
 mana_pool = 3
 metadata/_custom_type_script = "uid://qlg6oc76b8q2"

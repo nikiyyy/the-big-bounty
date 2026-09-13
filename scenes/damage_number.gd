@@ -9,7 +9,8 @@ const DRIFT := 0.35        # sideways scatter so stacked hits stay readable
 const COLOR_DAMAGE := Color(1.0, 0.45, 0.4)
 const COLOR_HEAL := Color(0.5, 0.95, 0.55)
 const COLOR_BLOCKED := Color(0.75, 0.75, 0.8)
-
+const COLOR_CRIT := Color(1.0, 0.85, 0.25)
+const PIXEL_SIZE := 0.0006
 
 static func spawn(unit: Node3D, amount: int, kind: String = "damage") -> void:
 	if unit == null or not is_instance_valid(unit):
@@ -23,6 +24,10 @@ static func spawn(unit: Node3D, amount: int, kind: String = "damage") -> void:
 			label.modulate = COLOR_HEAL
 		"blocked":
 			label.modulate = COLOR_BLOCKED
+		"crit":
+			label.modulate = COLOR_CRIT
+			label.text = "%d!" % amount
+			label.pixel_size = PIXEL_SIZE * 1.4
 		_:
 			label.modulate = COLOR_DAMAGE
 
@@ -38,7 +43,7 @@ static func spawn(unit: Node3D, amount: int, kind: String = "damage") -> void:
 func _init() -> void:
 	billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	fixed_size = true
-	pixel_size = 0.0006
+	pixel_size = PIXEL_SIZE
 	font_size = 96
 	outline_size = 22
 	outline_modulate = Color(0.03, 0.03, 0.05, 0.9)

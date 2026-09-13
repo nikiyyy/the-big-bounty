@@ -28,6 +28,8 @@ const RARITY_COLORS := {
 @export var damage_max: int = 0
 @export var reach: int = 1          ## hexes; 1 = must be adjacent
 @export var attack: Attack = Attack.MELEE
+@export var is_light: bool = false
+@export var crit_bonus: int = 10        ## percentage points, only if light
 
 @export_group("Armor")
 @export var armor_bonus: int = 0
@@ -53,6 +55,8 @@ func tooltip() -> String:
 	if is_weapon():
 		var style: String = "ranged" if is_ranged() else "melee"
 		lines.append("%d–%d damage, %s, reach %d" % [damage_min, damage_max, style, reach])
+		if is_light:
+			lines.append("Light  (+%d%% crit)" % crit_bonus)
 	if armor_bonus > 0:
 		lines.append("+%d armor" % armor_bonus)
 	lines.append("%d gold" % value)
@@ -65,7 +69,10 @@ func max_range() -> int:
 		return reach
 	return 1 << 30
 
-
+## Extra crit chance in percentage points from this weapon.
+func crit_chance_bonus() -> int:
+	return crit_bonus if is_light and is_weapon() else 0
+	
 ## True when the target is past effective range but still inside max range.
 func is_long_shot(distance: int) -> bool:
 	return is_ranged() and distance > reach

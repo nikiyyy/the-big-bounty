@@ -4,7 +4,8 @@ extends RefCounted
 
 ## Tuned so 100 armor = 75% reduction. Raise it to make armor weaker.
 const ARMOR_CONSTANT := 33.333333
-
+const CRIT_CAP := 75            ## percentage points
+const CRIT_MULTIPLIER := 2.0
 
 ## Fraction of incoming damage that gets through, 0.25 at 100 armor.
 static func multiplier(armor: int) -> float:
@@ -22,3 +23,19 @@ static func apply_armor(raw: int, armor: int) -> int:
 
 static func armor_of(unit) -> int:
 	return unit.armor() if unit != null and unit.has_method("armor") else 0
+## Crit chance in percent: one point per agility, plus a light weapon's bonus.
+
+static func crit_chance(attacker, weapon: Item) -> int:
+	var agility: int = 0
+	if attacker != null and "stats" in attacker and attacker.stats != null:
+		agility = attacker.stats.agility
+	var bonus: int = weapon.crit_chance_bonus() if weapon != null else 0
+	return clampi(agility + bonus, 0, CRIT_CAP)
+
+
+static func rolls_crit(attacker, weapon: Item) -> bool:
+	return randi_range(1, 100) <= crit_chance(attacker, weapon)
+
+
+static func apply_crit(raw: int) -> int:
+	return int(ceil(raw * CRIT_MULTIPLIER))

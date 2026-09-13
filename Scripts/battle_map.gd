@@ -522,6 +522,11 @@ func _strike(attacker, target, distance: int) -> void:
 	var roll: int = weapon.roll_damage() if weapon != null else 0
 	var raw: int = strength + roll
 
+	# crits multiply the weapon roll before range falloff and armor
+	var crit: bool = Damage.rolls_crit(attacker, weapon)
+	if crit:
+		raw = Damage.apply_crit(raw)
+
 	var long_shot: bool = weapon != null and weapon.is_long_shot(distance)
 	if long_shot:
 		raw = maxi(1, int(raw / 2.0))
@@ -530,13 +535,13 @@ func _strike(attacker, target, distance: int) -> void:
 	var dealt: int = Damage.apply_armor(raw, armor)
 
 	_face_unit(attacker, target)
-	print("%s hits %s for %d (raw %d, armor %d)%s" % [
+	print("%s hits %s for %d (raw %d, armor %d)%s%s" % [
 		_name_of(attacker), _name_of(target), dealt, raw, armor,
+		" CRIT" if crit else "",
 		" [long shot]" if long_shot else ""
 	])
-	DamageNumber.spawn(target, dealt, "blocked" if long_shot else "damage")
+	DamageNumber.spawn(target, dealt, "crit" if crit else ("blocked" if long_shot else "damage"))
 	target.take_damage(dealt)
-
 
 func _weapon_of(unit) -> Item:
 	if not "inventory" in unit or unit.inventory == null:

@@ -122,7 +122,8 @@ func _populate() -> void:
 	if weapon != null and weapon.is_weapon():
 		reach = "%d (%s)" % [weapon.reach, "ranged" if weapon.is_ranged() else "melee"]
 	_add_pair("Reach", reach)
-
+	_add_pair("Crit", "%d%%" % Damage.crit_chance(_unit, weapon))
+	
 	var stats: Stats = _unit.stats if "stats" in _unit else null
 	if stats == null:
 		return

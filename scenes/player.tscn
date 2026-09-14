@@ -29,6 +29,7 @@ metadata/_custom_type_script = "uid://sns8ro2vulvm"
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_3sak2"]
 
 [node name="Player" type="CharacterBody3D" unique_id=1841863593]
+collision_layer = 2
 script = ExtResource("1_3vyb7")
 stats = SubResource("Resource_abqhh")
 inventory = SubResource("Resource_5iu60")

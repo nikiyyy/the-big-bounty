@@ -287,11 +287,9 @@ func is_alive() -> bool:
 	return current_health > 0
 	
 func _handle_inspect(pressed: bool) -> void:
-	print("inspect: pressed=", pressed, " in_battle=", Game.in_battle())
 	if not Game.in_battle():
 		return
 	var inspector = get_tree().get_first_node_in_group("unit_inspector")
-	print("  inspector=", inspector)
 	if inspector == null:
 		return
 	if not pressed:
@@ -308,7 +306,6 @@ func _handle_inspect(pressed: bool) -> void:
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 
 	var collider = hit.get("collider")
-	print("  ray hit: ", collider)
 	if collider != null and (collider.has_method("get_faction") or collider == self):
 		inspector.show_for(collider)
 	

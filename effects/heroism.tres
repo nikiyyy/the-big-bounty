@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Effect" format=3 uid="uid://de7qokjhs61fn"]
+
+[ext_resource type="Script" uid="uid://by8q5x8dohocf" path="res://Scripts/effect.gd" id="1_c6ijj"]
+
+[resource]
+script = ExtResource("1_c6ijj")
+display_name = "G"
+modifiers = {
+"strength": 100
+}
+mode = 1

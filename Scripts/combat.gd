@@ -92,6 +92,9 @@ func _advance() -> void:
 		return          # everyone's down
 
 	active = order[index]
+	if active.has_method("tick_effects"):
+		active.tick_effects()
+	movement_max = int(budget_for.call(active)) if budget_for.is_valid() else 0
 	movement_max = int(budget_for.call(active)) if budget_for.is_valid() else 0
 	movement_left = movement_max
 

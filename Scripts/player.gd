@@ -6,6 +6,7 @@ signal died
 signal gold_changed(amount: int)
 signal xp_changed(amount: int)
 signal armor_changed(value: int)
+var effects: EffectHolder = EffectHolder.new()
 
 @export var speed: float = 5.0
 @export var interaction_range: float = 2.0
@@ -25,6 +26,8 @@ var dialogue_open: bool = false
 var current_health: int = 0
 var _waypoints: Array = []
 var _deploy_selection = null
+signal effects_changed
+
 
 func _ready() -> void:
 	stats = stats.duplicate() if stats != null else Stats.new()
@@ -340,3 +343,27 @@ func restore_mana(amount: int) -> void:
 
 func class_name_of() -> String:
 	return character_class.display_name if character_class != null else "—"
+
+#effects
+## A stat with active effects layered on. Use this, not stats.get(), anywhere
+## a buff should count.
+func modified_stat(stat_name: String) -> int:
+	var base: int = stats.get(stat_name) if stats != null else 0
+	return effects.modify(stat_name, base)
+
+
+func add_effect(effect: Effect) -> void:
+	effects.add(effect)
+	effects_changed.emit()
+
+
+## Called at the start of this unit's turn.
+func tick_effects() -> void:
+	var expired: Array = effects.advance()
+	if not expired.is_empty():
+		effects_changed.emit()
+
+
+func clear_effects() -> void:
+	effects.clear()
+	effects_changed.emit()

@@ -42,8 +42,12 @@ var _walking: bool = false
 var _walk_target = null
 var _walk_queue: Array = []
 var _stock_loaded: bool = false
+var effects: EffectHolder = EffectHolder.new()
 signal walk_finished
 signal died
+signal effects_changed
+
+
 
 func _ready() -> void:
 	inventory = inventory.duplicate(true) if inventory != null else Inventory.new()
@@ -308,3 +312,29 @@ func buy_price(item: Item) -> int:
 ## What this merchant charges you for an item.
 func sell_price(item: Item) -> int:
 	return maxi(1, item.value)
+	
+	
+#effects and buffs
+
+## A stat with active effects layered on. Use this, not stats.get(), anywhere
+## a buff should count.
+func modified_stat(stat_name: String) -> int:
+	var base: int = stats.get(stat_name) if stats != null else 0
+	return effects.modify(stat_name, base)
+
+
+func add_effect(effect: Effect) -> void:
+	effects.add(effect)
+	effects_changed.emit()
+
+
+## Called at the start of this unit's turn.
+func tick_effects() -> void:
+	var expired: Array = effects.advance()
+	if not expired.is_empty():
+		effects_changed.emit()
+
+
+func clear_effects() -> void:
+	effects.clear()
+	effects_changed.emit()

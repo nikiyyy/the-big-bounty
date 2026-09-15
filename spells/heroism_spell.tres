@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Spell" format=3 uid="uid://ekak1xlfrmrd"]
+
+[ext_resource type="Script" uid="uid://cfb1dx73mhhsh" path="res://Scripts/spell.gd" id="1_eme8v"]
+[ext_resource type="Resource" uid="uid://de7qokjhs61fn" path="res://effects/heroism.tres" id="1_icoxx"]
+
+[resource]
+script = ExtResource("1_eme8v")
+display_name = "Heroism"
+mana_cost = 2
+target_side = 1
+effect = ExtResource("1_icoxx")

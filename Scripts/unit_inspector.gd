@@ -124,13 +124,18 @@ func _populate() -> void:
 	_add_pair("Reach", reach)
 	_add_pair("Crit", "%d%%" % Damage.crit_chance(_unit, weapon))
 	
+	if "effects" in _unit and _unit.effects != null:
+		_add_pair("Effects", _unit.effects.describe())
+	
 	var stats: Stats = _unit.stats if "stats" in _unit else null
 	if stats == null:
 		return
 	for stat_name in Stats.NAMES:
 		if stat_name == "health":
 			continue
-		_add_pair(Stats.LABELS[stat_name], str(stats.get(stat_name)))
+		var base: int = stats.get(stat_name)
+		var now: int = _unit.modified_stat(stat_name) if _unit.has_method("modified_stat") else base
+		_add_pair(Stats.LABELS[stat_name], str(now) if now == base else "%d (%d)" % [now, base])
 
 
 func _add_pair(label: String, value: String) -> void:

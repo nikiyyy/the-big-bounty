@@ -27,7 +27,9 @@ static func armor_of(unit) -> int:
 
 static func crit_chance(attacker, weapon: Item) -> int:
 	var agility: int = 0
-	if attacker != null and "stats" in attacker and attacker.stats != null:
+	if attacker != null and attacker.has_method("modified_stat"):
+		agility = attacker.modified_stat("agility")
+	elif attacker != null and "stats" in attacker and attacker.stats != null:
 		agility = attacker.stats.agility
 	var bonus: int = weapon.crit_chance_bonus() if weapon != null else 0
 	return clampi(agility + bonus, 0, CRIT_CAP)

@@ -43,11 +43,11 @@ func bind(new_combat: Combat) -> void:
 
 func _build_order_bar() -> void:
 	_order_bar = PanelContainer.new()
-	_order_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_order_bar.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_order_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_order_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_order_bar.offset_top -= 20
-	_order_bar.offset_bottom -= 20
+	_order_bar.grow_vertical = Control.GROW_DIRECTION_END
+	_order_bar.offset_top = 16
+	_order_bar.offset_bottom = 16
 	_order_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := StyleBoxFlat.new()

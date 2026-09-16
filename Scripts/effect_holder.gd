@@ -47,6 +47,11 @@ func modify(stat_name: String, base: int) -> int:
 	return value
 
 
+## Snapshot of what's running, for UI. [{ effect, turns_left }]
+func entries() -> Array:
+	return active.duplicate()
+
+
 func describe() -> String:
 	var parts: Array = []
 	for entry in active:

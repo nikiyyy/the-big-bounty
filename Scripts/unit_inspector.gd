@@ -7,6 +7,7 @@ var _panel: PanelContainer
 var _title: Label
 var _grid: GridContainer
 var _unit = null
+var _effect_list: VBoxContainer
 
 
 func _ready() -> void:
@@ -86,7 +87,10 @@ func _build() -> void:
 	_grid.add_theme_constant_override("h_separation", 10)
 	_grid.add_theme_constant_override("v_separation", 3)
 	column.add_child(_grid)
-
+	
+	_effect_list = VBoxContainer.new()
+	_effect_list.add_theme_constant_override("separation", 4)
+	column.add_child(_effect_list)
 
 func _populate() -> void:
 	for child in _grid.get_children():
@@ -124,9 +128,6 @@ func _populate() -> void:
 	_add_pair("Reach", reach)
 	_add_pair("Crit", "%d%%" % Damage.crit_chance(_unit, weapon))
 	
-	if "effects" in _unit and _unit.effects != null:
-		_add_pair("Effects", _unit.effects.describe())
-	
 	var stats: Stats = _unit.stats if "stats" in _unit else null
 	if stats == null:
 		return
@@ -137,6 +138,7 @@ func _populate() -> void:
 		var now: int = _unit.modified_stat(stat_name) if _unit.has_method("modified_stat") else base
 		_add_pair(Stats.LABELS[stat_name], str(now) if now == base else "%d (%d)" % [now, base])
 
+	_build_effect_rows()
 
 func _add_pair(label: String, value: String) -> void:
 	var name_label := Label.new()
@@ -151,3 +153,56 @@ func _add_pair(label: String, value: String) -> void:
 	value_label.add_theme_font_size_override("font_size", 12)
 	value_label.custom_minimum_size = Vector2(55, 0)
 	_grid.add_child(value_label)
+
+## One row per active effect: colour swatch, description, turns remaining.
+func _build_effect_rows() -> void:
+	for child in _effect_list.get_children():
+		child.queue_free()
+
+	if not "effects" in _unit or _unit.effects == null:
+		return
+	var entries: Array = _unit.effects.entries()
+	if entries.is_empty():
+		return
+
+	var separator := HSeparator.new()
+	_effect_list.add_child(separator)
+
+	for entry in entries:
+		var effect: Effect = entry["effect"]
+
+		var row := PanelContainer.new()
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(1, 1, 1, 0.05)
+		box.set_corner_radius_all(4)
+		box.set_content_margin_all(6)
+		row.add_theme_stylebox_override("panel", box)
+
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 8)
+
+		var icon := ColorRect.new()
+		icon.custom_minimum_size = Vector2(22, 22)
+		icon.color = effect.color
+		line.add_child(icon)
+
+		var text := Label.new()
+		text.text = effect.display_name if effect.description.is_empty() else "%s — %s" % [
+			effect.display_name, effect.description
+		]
+		text.add_theme_font_size_override("font_size", 12)
+		text.custom_minimum_size = Vector2(200, 0)
+		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_child(text)
+
+		var turns := Label.new()
+		turns.text = str(entry["turns_left"])
+		turns.add_theme_font_size_override("font_size", 13)
+		turns.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		turns.custom_minimum_size = Vector2(28, 0)
+		turns.modulate = Color(1, 0.9, 0.6)
+		line.add_child(turns)
+
+		row.add_child(line)
+		_effect_list.add_child(row)

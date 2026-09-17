@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://nd6te0bu0b7q"]
+
+[ext_resource type="Script" uid="uid://prolaj2e3n3b" path="res://Scripts/spell_book.gd" id="1_vk067"]
+
+[node name="SpellBook" type="CanvasLayer" unique_id=364857414]
+script = ExtResource("1_vk067")

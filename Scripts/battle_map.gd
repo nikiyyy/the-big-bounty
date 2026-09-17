@@ -1,6 +1,7 @@
 extends Node3D
 const HUD_SCENE_PATH := "res://scenes/combat_hud.tscn"
 const COMBAT_CAMERA_PATH := "res://scenes/combat_camera.tscn"
+const SPELL_BOOK_PATH := "res://scenes/spell_book.tscn"
 const REACHABLE_TINT := Color(0.62, 0.72, 0.55)
 const COLOR_OBSTACLE := Color(0.04, 0.04, 0.05)
 const COLOR_ROUGH := Color(0.18, 0.32, 0.58)
@@ -8,10 +9,8 @@ const PREVIEW_TINT := Color(0.95, 0.82, 0.45)
 const DEPLOY_TINT := Color(0.55, 0.9, 0.65)
 const CAST_RANGE_TINT := Color(0.70, 0.62, 0.95)
 const BLAST_TINT := Color(1.15, 0.45, 0.30)
- 
-## Spell slot bound to each key, in the order _spells_of returns them.
-const SPELL_KEYS := {KEY_F: 0, KEY_G: 1, KEY_H: 2, KEY_J: 3}
- 
+
+
 @export var columns: int = 30
 @export var rows: int = 40
 @export var hex_size: float = 1.0
@@ -36,7 +35,8 @@ const SPELL_KEYS := {KEY_F: 0, KEY_G: 1, KEY_H: 2, KEY_J: 3}
 			_rebuild()
  
 signal deployment_ready
- 
+
+var _book: CanvasLayer = null
 var _deploying: bool = false
 var _grid: MultiMeshInstance3D
 var _ground: StaticBody3D
@@ -343,7 +343,7 @@ func _finish_deployment() -> void:
 	set_deploy_selection(null)
 	_deploy_tiles.clear()
 	_repaint()
- 
+
 	combat = Combat.new()
 	combat.name = "Combat"
 	add_child(combat)
@@ -351,18 +351,26 @@ func _finish_deployment() -> void:
 	combat.is_player_side = _is_player_side
 	combat.ai_phase = _run_ai_turn
 	combat.setup(_units)
- 
+
 	_hud.bind(combat)
 	_hud.unit_hovered.connect(set_portrait_hover)
 	_hud.unit_unhovered.connect(func(): set_portrait_hover(null))
- 
+
+	var book_packed: PackedScene = load(SPELL_BOOK_PATH)
+	if book_packed:
+		_book = book_packed.instantiate()
+		add_child(_book)
+		_book.spell_chosen.connect(_on_spell_chosen)
+
 	combat.movement_changed.connect(_on_movement_changed)
 	combat.turn_changed.connect(func(_u, _r, _p):
 		cancel_targeting()
+		if _book != null:
+			_book.close()
 		_refresh_preview()
 	)
 	combat.begin()
- 
+	
  
 ## Free hexes in a deploy band, filling outward from the centre row.
 func _deploy_slots(count: int, enemy_side: bool) -> Array:
@@ -458,14 +466,16 @@ func is_deploying() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
- 
+
 	if event.keycode == KEY_ESCAPE:
-		if _targeting != null:
+		if _book != null and _book.is_open():
+			_book.close()
+		elif _targeting != null:
 			cancel_targeting()
 		else:
 			Game.end_battle()
-	elif SPELL_KEYS.has(event.keycode):
-		_try_begin_targeting(SPELL_KEYS[event.keycode])
+	elif event.keycode == KEY_B:
+		_toggle_spell_book()
  
  
 func _highlight_deploy_zone() -> void:
@@ -1171,3 +1181,16 @@ func path_cost(path: Array) -> int:
 		total += move_cost(h)
 	return total
  
+func _toggle_spell_book() -> void:
+	if _book == null or combat == null or _deploying or _battle_over:
+		return
+	var caster = get_controlled_unit()
+	if caster == null:
+		_book.close()
+		return
+	_book.toggle(caster, _spells_of(caster))
+
+
+func _on_spell_chosen(index: int) -> void:
+	_book.close()
+	_try_begin_targeting(index)

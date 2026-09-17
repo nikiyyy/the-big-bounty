@@ -7,4 +7,6 @@ script = ExtResource("1_kdtli")
 display_name = "Fireball"
 cast_range = 12
 radius = 1
+damage_min = 1
+damage_max = 6
 metadata/_custom_type_script = "uid://cfb1dx73mhhsh"

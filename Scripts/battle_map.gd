@@ -417,10 +417,14 @@ func _random_deploy_slots(count: int, enemy_side: bool) -> Array:
  
  
 func _spawn_unit(data: Dictionary, at: Vector2i, faction: int):
-	var packed: PackedScene = load("res://scenes/npc.tscn")
+	var path: String = data.get("scene_override", "")
+	if path.is_empty():
+		path = "res://scenes/npc.tscn"
+	var packed: PackedScene = load(path)
 	if packed == null:
-		push_error("BattleMap: no npc.tscn at res://scenes/npc.tscn")
+		push_error("BattleMap: could not load unit scene at %s" % path)
 		return null
+
 	var unit = packed.instantiate()
 	add_child(unit)
 	unit.global_position = hex_to_world(at.x, at.y)
@@ -428,23 +432,50 @@ func _spawn_unit(data: Dictionary, at: Vector2i, faction: int):
 	unit.faction = faction
 	unit.level = data.get("level", 1)
 	unit.base_armor = data.get("base_armor", 0)
+
 	if data.get("character_class") != null:
 		unit.character_class = data["character_class"]
 	if data.get("stats") != null:
 		unit.stats = data["stats"].duplicate()
 		unit.current_health = unit.max_health()
 	unit.current_mana = unit.max_mana()
+
+	if data.get("spells") != null:
+		unit.spells = data["spells"].duplicate()
+
+	# an existing inventory (an ally's) wins; otherwise build one from the loadout
 	if data.get("inventory") != null:
 		unit.inventory = data["inventory"]
+	else:
+		unit.inventory = _build_loadout(data.get("equipment", []))
+
 	if data.get("ai") != null:
 		unit.ai = data["ai"]
+
+	unit.set_meta("xp_reward", data.get("xp_reward", 0))
+	unit.set_meta("gold_reward", data.get("gold", 0))
+
 	unit.stop_following()
 	_hexes[unit] = at
 	HealthTag.attach(unit)
 	if unit.has_signal("died"):
 		unit.died.connect(_on_unit_died.bind(unit))
 	return unit
- 
+
+
+## Fresh inventory with the template's gear worn. Items are duplicated so
+## three pirates don't share one cutlass.
+func _build_loadout(equipment: Array) -> Inventory:
+	var inv := Inventory.new()
+	for item in equipment:
+		if item == null:
+			continue
+		var copy: Item = item.duplicate()
+		if copy.slot == Item.Slot.NONE:
+			inv.items.append(copy)
+		else:
+			inv.equipped[copy.slot] = copy
+	return inv
  
 func _is_player_side(unit) -> bool:
 	return not _enemies.has(unit)

@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="UnitTemplate" format=3 uid="uid://cx8br4fv7eyjs"]
+
+[ext_resource type="Script" uid="uid://cinijcs8mk7ec" path="res://Scripts/combat_ai.gd" id="1_rxk14"]
+[ext_resource type="Script" uid="uid://30l2ylr7plcx" path="res://Scripts/item.gd" id="1_twlah"]
+[ext_resource type="Resource" uid="uid://dnxbsubqpomky" path="res://classes/warrior.tres" id="2_g3l4v"]
+[ext_resource type="Script" uid="uid://uc2jbresri3e" path="res://Scripts/unit_template.gd" id="2_o6716"]
+[ext_resource type="Script" uid="uid://cfb1dx73mhhsh" path="res://Scripts/spell.gd" id="3_voqcs"]
+[ext_resource type="Script" uid="uid://qlg6oc76b8q2" path="res://Scripts/stats.gd" id="6_s5468"]
+
+[sub_resource type="Resource" id="Resource_g3l4v"]
+script = ExtResource("1_rxk14")
+metadata/_custom_type_script = "uid://cinijcs8mk7ec"
+
+[sub_resource type="Resource" id="Resource_rxk14"]
+script = ExtResource("6_s5468")
+strength = 4
+resistance = 2
+health = 10
+agility = 3
+haste = 5
+metadata/_custom_type_script = "uid://qlg6oc76b8q2"
+
+[resource]
+script = ExtResource("2_o6716")
+display_name = "prisoner (Tier 2)"
+stats = SubResource("Resource_rxk14")
+ai = SubResource("Resource_g3l4v")
+character_class = ExtResource("2_g3l4v")
+level = 4
+metadata/_custom_type_script = "uid://uc2jbresri3e"

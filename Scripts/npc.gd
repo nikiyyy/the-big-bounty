@@ -139,24 +139,21 @@ func to_battle_group() -> Dictionary:
 			"display_name": display_name,
 			"stats": stats,
 			"ai": ai,
+			"character_class": character_class,
 			"level": level,
 			"base_armor": base_armor,
-			"character_class": character_class,
+			"inventory": inventory,
+			"spells": spells,
+			"xp_reward": 10,
+			"gold": 0,
+			"scene_override": "",
 		})
 	else:
 		for template in party:
 			if template == null:
 				continue
 			for i in template.count:
-				members.append({
-					"display_name": template.display_name if template.count == 1
-						else "%s %d" % [template.display_name, i + 1],
-					"stats": template.stats,
-					"ai": template.ai,
-					"level": template.level,
-					"base_armor": template.base_armor,
-					"character_class": template.character_class,
-				})
+				members.append(template.to_member(i))
 
 	return {"name": display_name, "members": members}
 

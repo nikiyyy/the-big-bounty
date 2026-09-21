@@ -61,7 +61,10 @@ var _targeting: Spell = null
 var _caster = null
 var _cast_tiles: Dictionary = {}
 var _blast_tiles: Dictionary = {}
- 
+var _xp_pool: int = 0
+var _gold_pool: int = 0
+
+
 func _ready() -> void:
 	_rebuild()
  
@@ -688,6 +691,9 @@ func _on_unit_died(unit) -> void:
 	_refresh_reachable()
 	if combat != null:
 		combat.order_changed.emit(combat.order)
+	if _enemies.has(unit):
+		_xp_pool += unit.get_meta("xp_reward", 0)
+		_gold_pool += unit.get_meta("gold_reward", 0)
 	_check_battle_over()
  
  
@@ -708,7 +714,11 @@ func _check_battle_over() -> void:
  
 	if not enemies_up or not players_up:
 		_battle_over = true
-		print("Victory." if not enemies_up else "Defeat.")
+		if not enemies_up:
+			print("Victory.")
+			_award_rewards()
+		else:
+			print("Defeat.")
 		for u in _units:
 			if is_instance_valid(u) and u.has_method("clear_effects"):
 				u.clear_effects()
@@ -1225,3 +1235,29 @@ func _toggle_spell_book() -> void:
 func _on_spell_chosen(index: int) -> void:
 	_book.close()
 	_try_begin_targeting(index)
+
+
+## XP is split evenly among survivors; gold all goes to the player.
+func _award_rewards() -> void:
+	var survivors: Array = []
+	for u in _units:
+		if not is_instance_valid(u) or _enemies.has(u):
+			continue
+		if u.has_method("is_alive") and not u.is_alive():
+			continue
+		survivors.append(u)
+
+	if survivors.is_empty():
+		return
+
+	var share: int = maxi(1, int(_xp_pool / float(survivors.size())))
+	for u in survivors:
+		if u.has_method("add_xp"):
+			u.add_xp(share)
+			print("  %s gains %d xp." % [_name_of(u), share])
+
+	if _gold_pool > 0 and Game.player != null and Game.player.has_method("add_gold"):
+		Game.player.add_gold(_gold_pool)
+		print("  Looted %d gold." % _gold_pool)
+
+	Game.record_battle_results(_xp_pool, survivors)

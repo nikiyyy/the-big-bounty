@@ -6,6 +6,8 @@ signal died
 signal gold_changed(amount: int)
 signal xp_changed(amount: int)
 signal armor_changed(value: int)
+signal leveled_up(new_level: int)
+
 var effects: EffectHolder = EffectHolder.new()
 
 @export var speed: float = 5.0
@@ -205,8 +207,21 @@ func add_gold(amount: int) -> void:
 
 
 func add_xp(amount: int) -> void:
+	if amount <= 0:
+		return
 	xp = maxi(0, xp + amount)
 	xp_changed.emit(xp)
+	_check_level_up()
+
+## Award a point per level gained, however many levels that is at once.
+func _check_level_up() -> void:
+	var earned: int = Progression.level_for_xp(xp)
+	while level < earned:
+		level += 1
+		if stats != null:
+			stats.available_points += Progression.POINTS_PER_LEVEL
+		print("%s reaches level %d." % [display_name, level])
+		leveled_up.emit(level)
 
 func _on_stat_raised(stat_name: String) -> void:
 	if stat_name == "health":
@@ -239,7 +254,7 @@ func load_state(data: Dictionary) -> void:
 	current_mana = data.get("mana", max_mana())
 	gold = data.get("gold", 0)
 	xp = data.get("xp", 0)
-	level = data.get("level", 1)
+	level = maxi(data.get("level", 1), Progression.level_for_xp(xp))
 	base_armor = data.get("base_armor", 0)
 	health_changed.emit(current_health, max_health())
 	mana_changed.emit(current_mana, max_mana())

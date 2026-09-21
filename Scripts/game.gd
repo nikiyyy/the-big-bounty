@@ -15,6 +15,7 @@ var _return_world_path: String = ""
 var _return_position: Vector3 = Vector3.ZERO
 var _world_states: Dictionary = {}
 var _player_state: Dictionary = {}
+var _pending_ally_xp: Dictionary = {}      # display_name -> xp gained
 
 func register_world_root(node: Node) -> void:
 	world_root = node
@@ -44,9 +45,9 @@ func load_world(scene_path: String) -> void:
 
 
 func _free_current_world() -> void:
-	# the player is rebuilt from scratch each load, so carry its state across
 	if player != null and is_instance_valid(player) and player.has_method("save_state"):
 		_player_state = player.save_state()
+		print("Game: saved player state, xp=", _player_state.get("xp"))
 	player = null
 
 	if current_world == null:
@@ -71,6 +72,7 @@ func _spawn_player(world: Node) -> void:
 	player.global_position = _find_spawn(world)
 	if not _player_state.is_empty() and player.has_method("load_state"):
 		player.load_state(_player_state)
+		print("Game: restored player, xp=", player.xp)
 	if player.has_method("teleport_to"):
 		player.teleport_to(player.global_position)
 	player_spawned.emit(player)
@@ -123,6 +125,7 @@ func end_battle() -> void:
 	if player.has_method("teleport_to"):
 		player.teleport_to(_return_position)
 
+	_apply_pending_ally_xp(current_world)
 	battle_ended.emit()
 
 func _capture_state(world: Node) -> Dictionary:
@@ -144,7 +147,9 @@ func _restore_state(world: Node) -> void:
 	var data: Dictionary = _world_states.get(world.scene_file_path, {})
 	for path in data.keys():
 		var node := world.get_node_or_null(NodePath(path))
-		if node and node.has_method("load_state"):
+		if node == null or node == player:
+			continue
+		if node.has_method("load_state"):
 			node.load_state(data[path])
 
 func _collect_followers(node: Node, out: Array) -> void:
@@ -153,3 +158,29 @@ func _collect_followers(node: Node, out: Array) -> void:
 			if child.has_method("to_ally_data"):
 				out.append(child.to_ally_data())
 		_collect_followers(child, out)
+
+## Called by the battle map on victory. Ally XP is matched back by name when
+## the overworld reloads, since the battle versions are throwaway copies.
+func record_battle_results(_total_xp: int, survivors: Array) -> void:
+	_pending_ally_xp.clear()
+	for u in survivors:
+		if u == player or not "display_name" in u or not "xp" in u:
+			continue
+		_pending_ally_xp[u.display_name] = u.xp
+
+
+func _apply_pending_ally_xp(world: Node) -> void:
+	if _pending_ally_xp.is_empty():
+		return
+	_match_ally_xp(world)
+	_pending_ally_xp.clear()
+
+
+func _match_ally_xp(node: Node) -> void:
+	for child in node.get_children():
+		if "display_name" in child and _pending_ally_xp.has(child.display_name):
+			if "xp" in child and child.has_method("add_xp"):
+				var gained: int = _pending_ally_xp[child.display_name] - child.xp
+				if gained > 0:
+					child.add_xp(gained)
+		_match_ally_xp(child)

@@ -10,6 +10,14 @@ const FACTION_COLORS := {
 	Faction.NEUTRAL: Color(0.9, 0.8, 0.2),
 }
 
+signal walk_finished
+signal died
+signal health_changed(current: int, maximum: int)
+signal mana_changed(current: int, maximum: int)
+signal effects_changed
+signal xp_changed(amount: int)
+signal leveled_up(new_level: int)
+
 @export var faction: Faction = Faction.NEUTRAL:
 	set(value):
 		faction = value
@@ -18,35 +26,40 @@ const FACTION_COLORS := {
 @export var display_name: String = "NPC"
 @export_multiline var greeting: String = "Hello there, traveller."
 @export_multiline var response: String = "Nice weather we're having."
-@export_group("Merchant")
-@export_group("Battle group")
+
+@export_group("Character")
+@export var stats: Stats
+@export var character_class: CharacterClass
+@export var inventory: Inventory
+@export var spells: Array[Spell] = []
+@export var ai: CombatAI
+@export var level: int = 1
+@export var xp: int = 0
+@export var base_armor: int = 0
+
 @export_group("Follow")
 @export var move_speed: float = 5.5
 @export var follow_distance: float = 3.0
 @export var stop_buffer: float = 0.8
-@export var stats: Stats
-@export var ai: CombatAI
-@export var level: int = 1
-@export var base_armor: int = 0
+
+@export_group("Battle group")
 @export var party: Array[UnitTemplate] = []
-@export var inventory: Inventory
-@export var character_class: CharacterClass
-@export var spells: Array[Spell] = []
+
+@export_group("Merchant")
 @export var is_merchant: bool = false
 @export var merchant_gold: int = 200
 @export var stock: Array[Item] = []
 @export_range(0.1, 1.0) var buy_rate: float = 0.5   ## fraction of value paid to you
 
+var current_health: int = 0
+var current_mana: int = 0
+var effects: EffectHolder = EffectHolder.new()
 var follow_target: Node3D = null
+
 var _walking: bool = false
 var _walk_target = null
 var _walk_queue: Array = []
 var _stock_loaded: bool = false
-var effects: EffectHolder = EffectHolder.new()
-signal walk_finished
-signal died
-signal effects_changed
-
 
 
 func _ready() -> void:
@@ -56,7 +69,8 @@ func _ready() -> void:
 		current_health = max_health()
 		current_mana = max_mana()
 	_apply_color()
-	
+
+
 func _apply_color() -> void:
 	if not is_node_ready():
 		return
@@ -64,26 +78,37 @@ func _apply_color() -> void:
 	mat.albedo_color = FACTION_COLORS[faction]
 	$MeshInstance3D.material_override = mat
 
+
 func get_faction() -> Faction:
 	return faction
+
 
 func is_ally() -> bool:
 	return faction == Faction.ALLY
 
+
 func is_enemy() -> bool:
 	return faction == Faction.ENEMY
-# ------------------------------------------------------------------ follow
+
+
+func class_name_of() -> String:
+	return character_class.display_name if character_class != null else "—"
+
+# ------------------------------------------------------------------- follow
 
 func start_following(who: Node3D) -> void:
 	follow_target = who
+
 
 func stop_following() -> void:
 	follow_target = null
 	_walking = false
 	velocity = Vector3.ZERO
 
+
 func is_following() -> bool:
 	return follow_target != null and is_instance_valid(follow_target)
+
 
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
@@ -130,6 +155,150 @@ func _physics_process(delta: float) -> void:
 	velocity.y = 0.0 if is_on_floor() else velocity.y - 20.0 * delta
 	move_and_slide()
 
+# ------------------------------------------------------------------- walking
+
+func walk_to(where: Vector3) -> void:
+	walk_path([where])
+
+
+func walk_path(points: Array) -> void:
+	_walk_queue = points.duplicate()
+	_next_waypoint()
+
+
+func _next_waypoint() -> void:
+	if _walk_queue.is_empty():
+		_walk_target = null
+		walk_finished.emit()
+	else:
+		_walk_target = _walk_queue.pop_front()
+
+
+func teleport_to(where: Vector3) -> void:
+	global_position = where
+	_walk_queue.clear()
+	_walk_target = null
+	velocity = Vector3.ZERO
+
+# -------------------------------------------------------------------- health
+
+func max_health() -> int:
+	return stats.health if stats != null else 1
+
+
+func take_damage(amount: int) -> void:
+	if current_health <= 0:
+		return
+	current_health = maxi(0, current_health - amount)
+	health_changed.emit(current_health, max_health())
+	if current_health == 0:
+		_die()
+
+
+func heal(amount: int) -> void:
+	current_health = mini(max_health(), current_health + amount)
+	health_changed.emit(current_health, max_health())
+
+
+func is_alive() -> bool:
+	return current_health > 0
+
+
+func _die() -> void:
+	velocity = Vector3.ZERO
+	rotation.x = deg_to_rad(-90.0)
+	set_collision_layer_value(2, false)
+	set_collision_mask_value(2, false)
+	$CollisionShape3D.set_deferred("disabled", true)
+	died.emit()
+
+
+func armor() -> int:
+	return base_armor + (inventory.total_armor() if inventory != null else 0)
+
+# ---------------------------------------------------------------------- mana
+
+func max_mana() -> int:
+	return stats.mana_pool if stats != null else 0
+
+
+func spend_mana(amount: int) -> bool:
+	if amount > current_mana:
+		return false
+	current_mana -= amount
+	mana_changed.emit(current_mana, max_mana())
+	return true
+
+
+func restore_mana(amount: int) -> void:
+	current_mana = mini(max_mana(), current_mana + amount)
+	mana_changed.emit(current_mana, max_mana())
+
+# ------------------------------------------------------------ effects, stats
+
+## A stat with active effects layered on. Use this, not stats.get(), anywhere
+## a buff should count.
+func modified_stat(stat_name: String) -> int:
+	var base: int = stats.get(stat_name) if stats != null else 0
+	return effects.modify(stat_name, base)
+
+
+func add_effect(effect: Effect) -> void:
+	effects.add(effect)
+	effects_changed.emit()
+
+
+## Called at the start of this unit's turn.
+func tick_effects() -> void:
+	var expired: Array = effects.advance()
+	if not expired.is_empty():
+		effects_changed.emit()
+
+
+func clear_effects() -> void:
+	effects.clear()
+	effects_changed.emit()
+
+# ----------------------------------------------------------------- levelling
+
+func add_xp(amount: int) -> void:
+	if amount <= 0:
+		return
+	xp = maxi(0, xp + amount)
+	xp_changed.emit(xp)
+	var earned: int = Progression.level_for_xp(xp)
+	while level < earned:
+		level += 1
+		if stats != null:
+			stats.available_points += Progression.POINTS_PER_LEVEL
+		print("%s reaches level %d." % [display_name, level])
+		leveled_up.emit(level)
+
+# ------------------------------------------------------------------ merchant
+
+## Merchant inventory is built from `stock` on first use, then persists.
+func merchant_inventory() -> Inventory:
+	if inventory == null:
+		inventory = Inventory.new()
+	if not _stock_loaded:
+		_stock_loaded = true
+		for item in stock:
+			if item != null:
+				inventory.items.append(item.duplicate())
+	return inventory
+
+
+## What this merchant pays for an item you're selling.
+func buy_price(item: Item) -> int:
+	return maxi(1, int(item.value * buy_rate))
+
+
+## What this merchant charges you for an item.
+func sell_price(item: Item) -> int:
+	return maxi(1, item.value)
+
+# -------------------------------------------------------- battle and saving
+
 ## The whole army this figure represents. An empty party means it fights alone.
 func to_battle_group() -> Dictionary:
 	var members: Array = []
@@ -158,6 +327,21 @@ func to_battle_group() -> Dictionary:
 	return {"name": display_name, "members": members}
 
 
+## This NPC as a single combatant, for when it joins your side.
+func to_ally_data() -> Dictionary:
+	return {
+		"display_name": display_name,
+		"stats": stats,
+		"ai": ai,
+		"character_class": character_class,
+		"inventory": inventory,
+		"spells": spells,
+		"level": level,
+		"xp": xp,
+		"base_armor": base_armor,
+	}
+
+
 func save_state() -> Dictionary:
 	return {
 		"position": global_position,
@@ -165,13 +349,15 @@ func save_state() -> Dictionary:
 		"following": is_following(),
 		"stats": stats,
 		"inventory": inventory,
-		"level": level,
-		"base_armor": base_armor,
 		"character_class": character_class,
+		"level": level,
+		"xp": xp,
+		"base_armor": base_armor,
 		"mana": current_mana,
 		"merchant_gold": merchant_gold,
 		"stock_loaded": _stock_loaded,
 	}
+
 
 func load_state(data: Dictionary) -> void:
 	global_position = data.get("position", global_position)
@@ -182,156 +368,13 @@ func load_state(data: Dictionary) -> void:
 		inventory = data["inventory"]
 	if data.get("character_class") != null:
 		character_class = data["character_class"]
-	level = data.get("level", level)
+	xp = data.get("xp", xp)
+	level = maxi(data.get("level", level), Progression.level_for_xp(xp))
 	base_armor = data.get("base_armor", base_armor)
 	current_mana = data.get("mana", max_mana())
-	mana_changed.emit(current_mana, max_mana())
 	merchant_gold = data.get("merchant_gold", merchant_gold)
 	_stock_loaded = data.get("stock_loaded", false)
+	mana_changed.emit(current_mana, max_mana())
+	xp_changed.emit(xp)
 	if data.get("following", false) and Game.player != null:
 		start_following(Game.player)
-
-## Walk to a world position, then emit walk_finished.
-func walk_to(where: Vector3) -> void:
-	walk_path([where])
-	
-func is_alive_in_battle() -> bool:
-	return is_alive()    # becomes a health check once damage exists
-
-func walk_path(points: Array) -> void:
-	_walk_queue = points.duplicate()
-	_next_waypoint()
-
-func _next_waypoint() -> void:
-	if _walk_queue.is_empty():
-		_walk_target = null
-		walk_finished.emit()
-	else:
-		_walk_target = _walk_queue.pop_front()
-
-func armor() -> int:
-	return base_armor + (inventory.total_armor() if inventory != null else 0)
-
-## This NPC as a single combatant, for when it joins your side.
-func to_ally_data() -> Dictionary:
-	return {
-		"display_name": display_name,
-		"stats": stats,
-		"ai": ai,
-		"level": level,
-		"base_armor": base_armor,
-		"inventory": inventory,
-		"character_class": character_class,
-	}
-
-#health stuff
-signal health_changed(current: int, maximum: int)
-var current_health: int = 0
-
-
-func max_health() -> int:
-	return stats.health if stats != null else 1
-
-
-func take_damage(amount: int) -> void:
-	if current_health <= 0:
-		return
-	current_health = maxi(0, current_health - amount)
-	health_changed.emit(current_health, max_health())
-	if current_health == 0:
-		_die()
-
-
-func _die() -> void:
-	velocity = Vector3.ZERO
-	rotation.x = deg_to_rad(-90.0)
-	set_collision_layer_value(2, false)
-	set_collision_mask_value(2, false)
-	$CollisionShape3D.set_deferred("disabled", true)
-	died.emit()
-
-
-func heal(amount: int) -> void:
-	current_health = mini(max_health(), current_health + amount)
-	health_changed.emit(current_health, max_health())
-	
-func is_alive() -> bool:
-	return current_health > 0
-	
-func teleport_to(where: Vector3) -> void:
-	global_position = where
-	_walk_queue.clear()
-	_walk_target = null
-	velocity = Vector3.ZERO
-
-signal mana_changed(current: int, maximum: int)
-
-var current_mana: int = 0
-
-
-func max_mana() -> int:
-	return stats.mana_pool if stats != null else 0
-
-
-func spend_mana(amount: int) -> bool:
-	if amount > current_mana:
-		return false
-	current_mana -= amount
-	mana_changed.emit(current_mana, max_mana())
-	return true
-
-
-func restore_mana(amount: int) -> void:
-	current_mana = mini(max_mana(), current_mana + amount)
-	mana_changed.emit(current_mana, max_mana())
-
-
-func class_name_of() -> String:
-	return character_class.display_name if character_class != null else "—"
-	
-## Merchant inventory is built from `stock` on first use, then persists.
-func merchant_inventory() -> Inventory:
-	if inventory == null:
-		inventory = Inventory.new()
-	if not _stock_loaded:
-		_stock_loaded = true
-		for item in stock:
-			if item != null:
-				inventory.items.append(item.duplicate())
-	return inventory
-
-
-## What this merchant pays for an item you're selling.
-func buy_price(item: Item) -> int:
-	return maxi(1, int(item.value * buy_rate))
-
-
-## What this merchant charges you for an item.
-func sell_price(item: Item) -> int:
-	return maxi(1, item.value)
-	
-	
-#effects and buffs
-
-## A stat with active effects layered on. Use this, not stats.get(), anywhere
-## a buff should count.
-func modified_stat(stat_name: String) -> int:
-	var base: int = stats.get(stat_name) if stats != null else 0
-	return effects.modify(stat_name, base)
-
-
-func add_effect(effect: Effect) -> void:
-	effects.add(effect)
-	effects_changed.emit()
-
-
-## Called at the start of this unit's turn.
-func tick_effects() -> void:
-	var expired: Array = effects.advance()
-	if not expired.is_empty():
-		effects_changed.emit()
-
-
-func clear_effects() -> void:
-	effects.clear()
-	effects_changed.emit()

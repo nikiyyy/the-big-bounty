@@ -18,7 +18,8 @@ var _panel: PanelContainer
 var _header: Label
 var _points_label: Label
 var _rows: Dictionary = {}      # stat name -> { value: Label, button: Button }
-
+var _xp_bar: ProgressBar
+var _xp_label: Label
 
 func _ready() -> void:
 	Game.battle_started.connect(func(_b): hide())
@@ -31,13 +32,13 @@ func _ready() -> void:
 
 func _on_player_spawned(new_player: Node) -> void:
 	player = new_player
+	_selected = new_player
 	if player.has_signal("gold_changed"):
 		player.gold_changed.connect(func(_g): _refresh())
 	if player.has_signal("xp_changed"):
 		player.xp_changed.connect(func(_x): _refresh())
 	if visible:
 		_refresh()
-
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
@@ -85,7 +86,17 @@ func _build() -> void:
 	_header = Label.new()
 	_header.add_theme_font_size_override("font_size", 20)
 	outer.add_child(_header)
+	
+	_xp_bar = ProgressBar.new()
+	_xp_bar.custom_minimum_size = Vector2(0, 18)
+	_xp_bar.show_percentage = false
+	outer.add_child(_xp_bar)
 
+	_xp_label = Label.new()
+	_xp_label.add_theme_font_size_override("font_size", 12)
+	_xp_label.modulate = Color(1, 1, 1, 0.65)
+	outer.add_child(_xp_label)
+	
 	_party_row = HBoxContainer.new()
 	_party_row.add_theme_constant_override("separation", 8)
 	outer.add_child(_party_row)
@@ -249,19 +260,33 @@ func _refresh() -> void:
 	var stats: Stats = unit.stats
 	if stats == null:
 		return
-		
+
 	var klass: String = unit.class_name_of() if unit.has_method("class_name_of") else "—"
 	var mana: int = unit.current_mana if "current_mana" in unit else 0
 	var mana_max: int = unit.max_mana() if unit.has_method("max_mana") else 0
 	var who: String = unit.display_name if "display_name" in unit else "Unit"
-	var level: int = unit.level if "level" in unit else 1
 	var armor: int = unit.armor() if unit.has_method("armor") else 0
 	var gold: int = player.gold if "gold" in player else 0
-	var xp: int = player.xp if "xp" in player else 0
+	var xp: int = unit.xp if "xp" in unit else 0
 
-	_header.text = "%s   %s   lvl %d   armor %d   mana %d/%d   %d gold   %d xp" % [
-		who, klass, level, armor, mana, mana_max, gold, xp
+	var progress: Dictionary = Progression.progress(xp)
+	print("sheet: unit=", who, " same_as_game_player=", unit == Game.player,
+		" xp=", xp, " progress=", progress)
+
+	_header.text = "%s   %s   lvl %d   armor %d   mana %d/%d   %d gold" % [
+		who, klass, progress["level"], armor, mana, mana_max, gold
 	]
+
+	_xp_bar.max_value = 100.0
+	_xp_bar.value = progress["ratio"] * 100.0
+
+	if progress["maxed"]:
+		_xp_label.text = "Max level (%d xp)" % xp
+	else:
+		_xp_label.text = "%d / %d xp toward level %d" % [
+			progress["into"], progress["needed"], progress["level"] + 1
+		]
+
 	_points_label.text = "Points to spend: %d" % stats.available_points
 
 	for stat_name in Stats.NAMES:

@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://cfb1dx73mhhsh" path="res://Scripts/spell.gd" id="10_y4r1p"]
 [ext_resource type="Resource" uid="uid://bcouf66vdsb7j" path="res://spells/fireball.tres" id="11_d2wvv"]
 [ext_resource type="Resource" uid="uid://ekak1xlfrmrd" path="res://spells/heroism_spell.tres" id="12_3v2ag"]
+[ext_resource type="PackedScene" uid="uid://dka2s0dwaf61q" path="res://assets/playerchar.glb" id="13_jej6c"]
 
 [sub_resource type="Resource" id="Resource_abqhh"]
 script = ExtResource("2_g2els")
@@ -25,8 +26,6 @@ script = ExtResource("4_qlg0r")
 items = Array[ExtResource("3_dqkch")]([ExtResource("4_tuyoq"), ExtResource("5_smehm"), ExtResource("6_ur7pv"), ExtResource("7_y4r1p")])
 metadata/_custom_type_script = "uid://sns8ro2vulvm"
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_3sak2"]
-
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_3sak2"]
 
 [node name="Player" type="CharacterBody3D" unique_id=1841863593]
@@ -37,11 +36,9 @@ inventory = SubResource("Resource_5iu60")
 character_class = ExtResource("9_ur7pv")
 spells = Array[ExtResource("10_y4r1p")]([ExtResource("11_d2wvv"), ExtResource("12_3v2ag")])
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1154471151]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-layers = 2
-mesh = SubResource("CapsuleMesh_3sak2")
-
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1058992928]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_3sak2")
+
+[node name="playerchar" parent="." unique_id=1442893836 instance=ExtResource("13_jej6c")]
+transform = Transform3D(-1.2, 0, -1.04907336e-07, 0, 1.2, 0, 1.04907336e-07, 0, -1.2, -0.003942013, 1.1361054, 0)

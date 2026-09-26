@@ -15,6 +15,7 @@ enum TargetSide { ENEMIES, ALLIES, ANY }
 @export_group("Damage")
 @export var damage_min: int = 0
 @export var damage_max: int = 0
+@export var damage_type: DamageType.Kind = DamageType.Kind.FIRE
 
 @export_group("Effect")
 @export var effect: Effect

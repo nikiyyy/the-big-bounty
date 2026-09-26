@@ -30,10 +30,11 @@ const RARITY_COLORS := {
 @export var attack: Attack = Attack.MELEE
 @export var is_light: bool = false
 @export var crit_bonus: int = 10        ## percentage points, only if light
+@export var damage_type: DamageType.Kind = DamageType.Kind.SLASHING
 
 @export_group("Armor")
 @export var armor_bonus: int = 0
-
+@export var resistances: Resistances
 
 func is_weapon() -> bool:
 	return kind == Kind.WEAPON
@@ -54,11 +55,18 @@ func tooltip() -> String:
 	var lines: Array = [display_name]
 	if is_weapon():
 		var style: String = "ranged" if is_ranged() else "melee"
-		lines.append("%d–%d damage, %s, reach %d" % [damage_min, damage_max, style, reach])
+		lines.append("%d–%d %s damage, %s, reach %d" % [
+			damage_min, damage_max, DamageType.label(damage_type).to_lower(), style, reach
+		])
 		if is_light:
 			lines.append("Light  (+%d%% crit)" % crit_bonus)
 	if armor_bonus > 0:
 		lines.append("+%d armor" % armor_bonus)
+	if resistances != null:
+		for element in DamageType.ELEMENTS:
+			var value: int = resistances.get_for(element)
+			if value != 0:
+				lines.append("+%d %s resist" % [value, DamageType.label(element).to_lower()])
 	lines.append("%d gold" % value)
 	return "\n".join(lines)
 

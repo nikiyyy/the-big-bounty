@@ -2,14 +2,14 @@ class_name Stats
 extends Resource
 
 const NAMES := [
-	"strength", "resistance", "health",
+	"strength", "health",
 	"agility", "haste", "dodge",
 	"magic_power", "mana_pool", "luck",
 	"charisma", "trade", "crafting",
 ]
 
 const LABELS := {
-	"strength": "Strength", "resistance": "Resistance", "health": "Health",
+	"strength": "Strength", "health": "Health",
 	"agility": "Agility", "haste": "Haste", "dodge": "Dodge",
 	"magic_power": "Magic power", "mana_pool": "Mana pool", "luck": "Luck",
 	"charisma": "Charisma", "trade": "Trade", "crafting": "Crafting",
@@ -22,7 +22,6 @@ signal changed_stat(stat_name: String)
 
 @export_group("Physical")
 @export var strength: int = 1
-@export var resistance: int = 1
 @export var health: int = 1
 
 @export_group("Speed")

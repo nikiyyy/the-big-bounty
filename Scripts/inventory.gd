@@ -140,3 +140,13 @@ func unequip_to(target: Inventory, slot: int) -> bool:
 		target.items.append(current)
 	inventory_changed.emit()
 	return true
+	
+## Total elemental resistance from everything worn.
+func total_resistances() -> Resistances:
+	var out := Resistances.new()
+	for item in equipped.values():
+		if item.resistances == null:
+			continue
+		for element in DamageType.ELEMENTS:
+			out.add_for(element, item.resistances.get_for(element))
+	return out

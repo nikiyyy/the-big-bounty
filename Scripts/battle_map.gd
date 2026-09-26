@@ -435,7 +435,8 @@ func _spawn_unit(data: Dictionary, at: Vector2i, faction: int):
 	unit.faction = faction
 	unit.level = data.get("level", 1)
 	unit.base_armor = data.get("base_armor", 0)
-
+	if data.get("base_resistances") != null:
+		unit.base_resistances = data["base_resistances"].duplicate()
 	if data.get("character_class") != null:
 		unit.character_class = data["character_class"]
 	if data.get("stats") != null:
@@ -642,14 +643,17 @@ func _strike(attacker, target, distance: int) -> void:
  
 	var armor: int = Damage.armor_of(target)
 	var dealt: int = Damage.apply_armor(raw, armor)
- 
+	var kind: int = weapon.damage_type if weapon != null else DamageType.Kind.BLUNT
+
 	_face_unit(attacker, target)
-	print("%s hits %s for %d (raw %d, armor %d)%s%s" % [
-		_name_of(attacker), _name_of(target), dealt, raw, armor,
+	print("%s hits %s for %d %s (raw %d, armor %d)%s%s" % [
+		_name_of(attacker), _name_of(target), dealt,
+		DamageType.label(kind).to_lower(), raw, armor,
 		" CRIT" if crit else "",
 		" [long shot]" if long_shot else ""
 	])
-	DamageNumber.spawn(target, dealt, "crit" if crit else ("blocked" if long_shot else "damage"))
+	DamageNumber.spawn(target, dealt, "crit" if crit else ("blocked" if long_shot else "damage"), kind)
+	
 	target.take_damage(dealt)
  
  
@@ -861,8 +865,10 @@ func confirm_cast(world_pos: Vector3) -> bool:
 		if spell.deals_damage():
 			var raw: int = power + spell.roll_damage()
 			var dealt: int = Damage.apply_armor(raw, Damage.armor_of(unit))
-			print("  %s takes %d (raw %d)" % [_name_of(unit), dealt, raw])
-			DamageNumber.spawn(unit, dealt)
+			print("  %s takes %d %s" % [
+				_name_of(unit), dealt, DamageType.label(spell.damage_type).to_lower()
+			])
+			DamageNumber.spawn(unit, dealt, "damage", spell.damage_type)
 			unit.take_damage(dealt)
  
 		if spell.effect != null:

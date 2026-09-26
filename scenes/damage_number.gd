@@ -12,7 +12,7 @@ const COLOR_BLOCKED := Color(0.75, 0.75, 0.8)
 const COLOR_CRIT := Color(1.0, 0.85, 0.25)
 const PIXEL_SIZE := 0.0006
 
-static func spawn(unit: Node3D, amount: int, kind: String = "damage") -> void:
+static func spawn(unit: Node3D, amount: int, kind: String = "damage", element: int = -1) -> void:
 	if unit == null or not is_instance_valid(unit):
 		return
 
@@ -29,10 +29,8 @@ static func spawn(unit: Node3D, amount: int, kind: String = "damage") -> void:
 			label.text = "%d!" % amount
 			label.pixel_size = PIXEL_SIZE * 1.4
 		_:
-			label.modulate = COLOR_DAMAGE
+			label.modulate = DamageType.color(element) if element >= 0 else COLOR_DAMAGE
 
-	# parented to the world, not the unit — otherwise it rides along if the
-	# unit walks away, or vanishes early when the unit is freed
 	unit.get_parent().add_child(label)
 	label.global_position = unit.global_position + Vector3(
 		randf_range(-DRIFT, DRIFT), 1.6, randf_range(-DRIFT, DRIFT)

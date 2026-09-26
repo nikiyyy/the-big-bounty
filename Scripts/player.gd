@@ -21,6 +21,7 @@ var effects: EffectHolder = EffectHolder.new()
 @export var inventory: Inventory
 @export var character_class: CharacterClass
 @export var spells: Array[Spell] = []
+@export var base_resistances: Resistances
 
 var target_position: Vector3
 var interaction_target = null
@@ -32,6 +33,7 @@ signal effects_changed
 
 
 func _ready() -> void:
+	base_resistances = base_resistances.duplicate() if base_resistances != null else Resistances.new()
 	stats = stats.duplicate() if stats != null else Stats.new()
 	stats.changed_stat.connect(_on_stat_raised)
 	inventory = inventory.duplicate(true) if inventory != null else Inventory.new()
@@ -236,6 +238,7 @@ func save_state() -> Dictionary:
 		"xp": xp,
 		"level": level,
 		"base_armor": base_armor,
+		"base_resistances": base_resistances,
 		"inventory": inventory,
 		"character_class": character_class,
 		"mana": current_mana,
@@ -250,6 +253,8 @@ func load_state(data: Dictionary) -> void:
 		inventory = data["inventory"]
 	if data.get("character_class") != null:
 		character_class = data["character_class"]
+	if data.get("base_resistances") != null:
+		base_resistances = data["base_resistances"]
 	current_health = data.get("health", max_health())
 	current_mana = data.get("mana", max_mana())
 	gold = data.get("gold", 0)
@@ -267,6 +272,14 @@ func load_state(data: Dictionary) -> void:
 func armor() -> int:
 	return base_armor + equipment_armor()
 
+## Innate resistance plus whatever gear adds.
+func resistances() -> Resistances:
+	var base: Resistances = base_resistances if base_resistances != null else Resistances.new()
+	var gear: Resistances = inventory.total_resistances() if inventory != null else null
+	return base.combined(gear)
+
+func resistance_to(kind: int) -> int:
+	return resistances().get_for(kind)
 
 func equipment_armor() -> int:
 	return inventory.total_armor() if inventory != null else 0

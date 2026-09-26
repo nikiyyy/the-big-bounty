@@ -119,7 +119,10 @@ func _populate() -> void:
 
 	var damage: String = "—"
 	if weapon != null and weapon.is_weapon():
-		damage = "%d–%d" % [weapon.damage_min, weapon.damage_max]
+		damage = "%d–%d %s" % [
+			weapon.damage_min, weapon.damage_max,
+			DamageType.label(weapon.damage_type).to_lower()
+		]
 	_add_pair("Damage", damage)
 
 	var reach: String = "1 (melee)"
@@ -127,7 +130,11 @@ func _populate() -> void:
 		reach = "%d (%s)" % [weapon.reach, "ranged" if weapon.is_ranged() else "melee"]
 	_add_pair("Reach", reach)
 	_add_pair("Crit", "%d%%" % Damage.crit_chance(_unit, weapon))
-	
+	if _unit.has_method("resistances"):
+		var res: Resistances = _unit.resistances()
+		for element in DamageType.ELEMENTS:
+			_add_pair("%s resist" % DamageType.label(element), str(res.get_for(element)))
+
 	var stats: Stats = _unit.stats if "stats" in _unit else null
 	if stats == null:
 		return

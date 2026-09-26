@@ -10,6 +10,7 @@ extends Resource
 @export var character_class: CharacterClass
 @export var level: int = 1
 @export var base_armor: int = 0
+@export var base_resistances: Resistances
 
 @export_group("Loadout")
 ## Equipped automatically on spawn, into each item's own slot.
@@ -44,6 +45,7 @@ func to_member(index: int) -> Dictionary:
 		"character_class": character_class,
 		"level": level,
 		"base_armor": base_armor,
+		"base_resistances": base_resistances,
 		"equipment": equipment,
 		"spells": spells,
 		"xp_reward": xp_reward,

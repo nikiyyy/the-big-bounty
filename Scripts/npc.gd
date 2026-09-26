@@ -36,6 +36,7 @@ signal leveled_up(new_level: int)
 @export var level: int = 1
 @export var xp: int = 0
 @export var base_armor: int = 0
+@export var base_resistances: Resistances
 
 @export_group("Follow")
 @export var move_speed: float = 5.5
@@ -63,6 +64,7 @@ var _stock_loaded: bool = false
 
 
 func _ready() -> void:
+	base_resistances = base_resistances.duplicate() if base_resistances != null else Resistances.new()
 	inventory = inventory.duplicate(true) if inventory != null else Inventory.new()
 	if not Engine.is_editor_hint():
 		stats = stats.duplicate() if stats != null else Stats.new()
@@ -216,6 +218,15 @@ func _die() -> void:
 func armor() -> int:
 	return base_armor + (inventory.total_armor() if inventory != null else 0)
 
+## Innate resistance plus whatever gear adds.
+func resistances() -> Resistances:
+	var base: Resistances = base_resistances if base_resistances != null else Resistances.new()
+	var gear: Resistances = inventory.total_resistances() if inventory != null else null
+	return base.combined(gear)
+
+
+func resistance_to(kind: int) -> int:
+	return resistances().get_for(kind)
 # ---------------------------------------------------------------------- mana
 
 func max_mana() -> int:
@@ -311,6 +322,7 @@ func to_battle_group() -> Dictionary:
 			"character_class": character_class,
 			"level": level,
 			"base_armor": base_armor,
+			"base_resistances": base_resistances,
 			"inventory": inventory,
 			"spells": spells,
 			"xp_reward": 10,
@@ -339,6 +351,7 @@ func to_ally_data() -> Dictionary:
 		"level": level,
 		"xp": xp,
 		"base_armor": base_armor,
+		"base_resistances": base_resistances,
 	}
 
 
@@ -353,6 +366,7 @@ func save_state() -> Dictionary:
 		"level": level,
 		"xp": xp,
 		"base_armor": base_armor,
+		"base_resistances": base_resistances,
 		"mana": current_mana,
 		"merchant_gold": merchant_gold,
 		"stock_loaded": _stock_loaded,
@@ -368,6 +382,8 @@ func load_state(data: Dictionary) -> void:
 		inventory = data["inventory"]
 	if data.get("character_class") != null:
 		character_class = data["character_class"]
+	if data.get("base_resistances") != null:
+		base_resistances = data["base_resistances"]
 	xp = data.get("xp", xp)
 	level = maxi(data.get("level", level), Progression.level_for_xp(xp))
 	base_armor = data.get("base_armor", base_armor)
